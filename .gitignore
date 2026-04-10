@@ -1,4 +1,4 @@
-_oss_window_switcher/
+_oss_window_switcher_example/
 # Binaries and build output
 *.exe
 *.exe~
@@ -47,3 +47,4 @@ __debug_bin
 .DS_Store
 Thumbs.db
 Desktop.ini
+.tmp*
