@@ -63,6 +63,7 @@ If a change risks making the first visible frame slower, reconsider it.
 - Mock or wrap Win32 boundaries only when it materially improves testing of real logic.
 - Do not write brittle tests for OS behavior that cannot be made deterministic.
 - If a change depends on real Windows behavior, note the need for manual verification explicitly.
+- run `lefthook run pre-commit` after implementing a feature to verify linting and tests.
 
 ## When Tests Are Not Necessary
 
