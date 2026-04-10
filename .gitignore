@@ -1,0 +1,49 @@
+_oss_window_switcher/
+# Binaries and build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.app
+*.out
+*.test
+*.prof
+*.pprof
+*.cover
+*.coverprofile
+coverage.out
+cover.out
+coverage.html
+
+# Build directories
+/bin/
+/build/
+/dist/
+/out/
+/release/
+/debug/
+
+# Go workspace / tools
+__debug_bin
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE / editor directories and files
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
