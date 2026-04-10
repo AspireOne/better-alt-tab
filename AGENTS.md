@@ -4,7 +4,7 @@ Repo-wide guidance for autonomous coding agents.
 
 ## General
 
-- Read `README.md` before making architectural or behavioral changes.
+- Read `spec.md` before making architectural or behavioral changes.
 - Keep changes scoped. Do not widen scope without a concrete reason.
 - Prefer the smallest correct change over a broad refactor.
 - Preserve the existing architecture unless there is a clear technical reason to improve it.
@@ -87,7 +87,7 @@ While coding:
 
 Before finishing:
 
-- verify the change still matches `README.md`
+- verify the change still matches `spec.md`
 - check affected edge cases
 - call out any untested Windows-specific behavior
 
