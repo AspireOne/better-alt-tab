@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 	"syscall"
 	"unsafe"
 
@@ -26,6 +28,7 @@ const (
 	msgHookCancel        = win32.WM_APP + 3
 	msgForegroundChanged = win32.WM_APP + 4
 	msgTray              = win32.WM_APP + 5
+	msgShutdownRequested = win32.WM_APP + 6
 
 	wmUser        = 0x0400
 	ninSelect     = wmUser + 0
@@ -82,6 +85,15 @@ func Run(logger *log.Logger) error {
 		return err
 	}
 	defer a.shutdown()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+	defer signal.Stop(signals)
+
+	go func() {
+		<-signals
+		a.requestShutdown()
+	}()
 
 	return a.loop()
 }
@@ -200,6 +212,9 @@ func (a *App) loop() error {
 
 func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uintptr) uintptr {
 	switch msg {
+	case msgShutdownRequested:
+		win32.PostQuitMessage(0)
+		return 0
 	case msgHookTabPressed:
 		a.onTabPressed()
 		return 0
@@ -353,4 +368,11 @@ func (a *App) cancelSession() {
 
 func trayNotificationCode(lParam uint32) uint32 {
 	return lParam & 0xffff
+}
+
+func (a *App) requestShutdown() {
+	if a.controllerHwnd == 0 {
+		return
+	}
+	win32.PostMessage(a.controllerHwnd, msgShutdownRequested, 0, 0)
 }
