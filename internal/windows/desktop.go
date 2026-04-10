@@ -23,11 +23,11 @@ func (d *DesktopManager) Close() {
 
 func (d *DesktopManager) IsWindowOnCurrentDesktop(hwnd win32.HWND) bool {
 	if d == nil || !d.available || d.manager == nil {
-		return false
+		return true
 	}
 	ok, err := d.manager.IsWindowOnCurrentDesktop(hwnd)
 	if err != nil {
-		return false
+		return true
 	}
 	return ok
 }

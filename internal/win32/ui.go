@@ -249,14 +249,22 @@ type virtualDesktopManagerVtbl struct {
 }
 
 func (m *VirtualDesktopManager) vtbl() *virtualDesktopManagerVtbl {
-	return *(**virtualDesktopManagerVtbl)(unsafe.Pointer(&m.ptr))
+	if m == nil || m.ptr == 0 {
+		return nil
+	}
+	return *(**virtualDesktopManagerVtbl)(unsafe.Pointer(m.ptr))
 }
 
 func (m *VirtualDesktopManager) Release() {
 	if m == nil || m.ptr == 0 {
 		return
 	}
-	_, _, _ = syscall.SyscallN(m.vtbl().Release, m.ptr)
+	vtbl := m.vtbl()
+	if vtbl == nil || vtbl.Release == 0 {
+		m.ptr = 0
+		return
+	}
+	_, _, _ = syscall.SyscallN(vtbl.Release, m.ptr)
 	m.ptr = 0
 }
 
@@ -264,8 +272,12 @@ func (m *VirtualDesktopManager) IsWindowOnCurrentDesktop(hwnd HWND) (bool, error
 	if m == nil || m.ptr == 0 {
 		return true, nil
 	}
+	vtbl := m.vtbl()
+	if vtbl == nil || vtbl.IsCurrent == 0 {
+		return true, nil
+	}
 	var onCurrent int32
-	r, _, err := syscall.SyscallN(m.vtbl().IsCurrent, m.ptr, uintptr(hwnd), uintptr(unsafe.Pointer(&onCurrent)))
+	r, _, err := syscall.SyscallN(vtbl.IsCurrent, m.ptr, uintptr(hwnd), uintptr(unsafe.Pointer(&onCurrent)))
 	if int32(r) < 0 {
 		return false, err
 	}
