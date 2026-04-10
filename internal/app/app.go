@@ -115,6 +115,9 @@ func (a *App) initWindows() error {
 	if err != nil {
 		return fmt.Errorf("create overlay window: %w", err)
 	}
+	if err := win32.SetLayeredWindowAlpha(a.overlayHwnd, 255); err != nil {
+		return fmt.Errorf("initialize overlay alpha: %w", err)
+	}
 	a.overlay = ui.NewOverlay(a.overlayHwnd)
 	a.taskbarMsg = ui.RegisterTaskbarCreated()
 

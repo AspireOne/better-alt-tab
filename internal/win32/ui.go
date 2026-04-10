@@ -16,6 +16,14 @@ func PositionWindowNoActivate(hwnd HWND, x, y, width, height int32, show bool) {
 	ignoreSyscall3(procSetWindowPos.Call(uintptr(hwnd), 0, uintptr(x), uintptr(y), uintptr(width), uintptr(height), flags))
 }
 
+func SetLayeredWindowAlpha(hwnd HWND, alpha byte) error {
+	r, _, err := procSetLayeredWindowAttributes.Call(uintptr(hwnd), 0, uintptr(alpha), LWA_ALPHA)
+	if r == 0 {
+		return err
+	}
+	return nil
+}
+
 func InvalidateRect(hwnd HWND) {
 	ignoreSyscall3(procInvalidateRect.Call(uintptr(hwnd), 0, 1))
 }
