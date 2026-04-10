@@ -26,6 +26,10 @@ coverage.html
 
 # Go workspace / tools
 __debug_bin
+.gocache/
+.gotmp/
+.cache/
+.golangci-lint-cache/
 
 # Logs
 *.log

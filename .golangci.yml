@@ -16,8 +16,10 @@ linters:
     - gosec
     - gocyclo
     - gocritic
+    - goconst
+    - exhaustive
   disable-all: true
 
 linters-settings:
   goimports:
-    local-prefixes: quick-app-switcher
+    local-prefixes: quick_app_switcher

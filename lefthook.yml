@@ -7,6 +7,11 @@ pre-commit:
     go-test:
       glob: "*.go"
       run: go test -short ./...
+    nilaway:
+      glob: "*.go"
+      run: nilaway -include-pkgs="quick_app_switcher" ./...
+    go-mod-tidy:
+      run: go mod tidy && git --no-pager diff --exit-code go.mod
 
 commit-msg:
   commands:
