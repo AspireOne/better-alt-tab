@@ -91,6 +91,7 @@ Before finishing:
 - verify the change still matches `spec.md`
 - check affected edge cases
 - call out any untested Windows-specific behavior
+- Use conventional commits for commiting. Include title and body too.
 
 ## If In Doubt
 
