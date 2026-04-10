@@ -1,0 +1,16 @@
+pre-commit:
+  parallel: true
+  commands:
+    golangci-lint:
+      glob: "*.go"
+      run: golangci-lint run
+    go-test:
+      glob: "*.go"
+      run: go test -short ./...
+
+commit-msg:
+  commands:
+    conventional-commits:
+      run: |
+        grep -Eq "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .{1,72}" {1}
+      fail_text: "Commit message does not follow Conventional Commits format (e.g., 'feat(scope): description')"
