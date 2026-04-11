@@ -195,6 +195,65 @@ func TestOnTabPressedWithoutInstantPreviewOnlyUpdatesSelection(t *testing.T) {
 	}
 }
 
+func TestOnTabPressedRefreshesSnapshotAtSessionStart(t *testing.T) {
+	a := newTestApp()
+	a.cfg.InstantSwitchPreview = false
+	a.lastSnapshot = windows.InventorySnapshot{
+		Order: []windows.WindowID{10, 20},
+		ByID: map[windows.WindowID]windows.WindowInfo{
+			10: {ID: 10},
+			20: {ID: 20},
+		},
+	}
+	a.loadSnapshot = func() (windows.InventorySnapshot, error) {
+		return windows.InventorySnapshot{
+			Order: []windows.WindowID{10, 20, 30},
+			ByID: map[windows.WindowID]windows.WindowInfo{
+				10: {ID: 10},
+				20: {ID: 20},
+				30: {ID: 30},
+			},
+		}, nil
+	}
+
+	a.onTabPressed()
+
+	if a.session.State != session.StateCycling {
+		t.Fatalf("got state %v want cycling", a.session.State)
+	}
+	want := []windows.WindowID{10, 20, 30}
+	if !reflect.DeepEqual(a.session.Candidates, want) {
+		t.Fatalf("got candidates %v want %v", a.session.Candidates, want)
+	}
+	if _, ok := a.lastSnapshot.ByID[30]; !ok {
+		t.Fatal("expected refreshed snapshot to include new window")
+	}
+}
+
+func TestOnTabPressedDoesNotStartSessionWhenSnapshotRefreshFails(t *testing.T) {
+	a := newTestApp()
+	a.cfg.InstantSwitchPreview = false
+	a.lastSnapshot = windows.InventorySnapshot{
+		Order: []windows.WindowID{10, 20},
+		ByID: map[windows.WindowID]windows.WindowInfo{
+			10: {ID: 10},
+			20: {ID: 20},
+		},
+	}
+	a.loadSnapshot = func() (windows.InventorySnapshot, error) {
+		return windows.InventorySnapshot{}, errors.New("refresh failed")
+	}
+
+	a.onTabPressed()
+
+	if a.session.State != session.StateIdle {
+		t.Fatalf("got state %v want idle", a.session.State)
+	}
+	if len(a.session.Candidates) != 0 {
+		t.Fatalf("got candidates %v want none", a.session.Candidates)
+	}
+}
+
 func TestFinalizeSelectionFallsBackToNextActivatableTarget(t *testing.T) {
 	a := newTestApp()
 	a.mru = mru.New()

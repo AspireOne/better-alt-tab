@@ -70,6 +70,7 @@ type App struct {
 
 	activateTarget      func(windows.WindowID) error
 	isValidSwitchTarget func(windows.WindowID) bool
+	loadSnapshot        func() (windows.InventorySnapshot, error)
 
 	windowProc       uintptr
 	overlayProc      uintptr
@@ -210,7 +211,18 @@ func (a *App) initWindows() error {
 }
 
 func (a *App) refreshSnapshot() error {
-	snapshot, err := a.inventory.Snapshot()
+	var (
+		snapshot windows.InventorySnapshot
+		err      error
+	)
+	switch {
+	case a.loadSnapshot != nil:
+		snapshot, err = a.loadSnapshot()
+	case a.inventory != nil:
+		snapshot, err = a.inventory.Snapshot()
+	default:
+		err = fmt.Errorf("inventory is not initialized")
+	}
 	if err != nil {
 		return err
 	}
@@ -421,11 +433,9 @@ func (a *App) onTabPressed() {
 		return
 	}
 	a.pruneCachedSnapshot()
-	if len(a.lastSnapshot.Order) < 2 {
-		if err := a.refreshSnapshot(); err != nil {
-			a.logger.Printf("refresh snapshot: %v", err)
-			return
-		}
+	if err := a.refreshSnapshot(); err != nil {
+		a.logger.Printf("refresh snapshot: %v", err)
+		return
 	}
 	candidates := a.mru.BuildCandidates(a.lastSnapshot)
 	startedFrom := windows.WindowID(win32.GetForegroundWindow())
