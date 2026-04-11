@@ -8,7 +8,7 @@ New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 
 Push-Location $repoRoot
 try {
-    go build -o $outputExe ./cmd/better-alt-tab
+    go build -ldflags "-H=windowsgui" -o $outputExe ./cmd/better-alt-tab
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }

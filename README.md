@@ -95,7 +95,7 @@ instant_switch_preview = true
 If you want to build it yourself:
 
 ```powershell
-go build -o better-alt-tab.exe ./cmd/better-alt-tab
+go build -ldflags "-H=windowsgui" -o better-alt-tab.exe ./cmd/better-alt-tab
 ```
 
 For a quick development build-and-run loop:
