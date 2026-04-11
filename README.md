@@ -36,6 +36,19 @@ Alternatively, you can use the provided PowerShell build script if available:
 3. Use the keyboard shortcut (typically `Alt` + `Tab`) to invoke the overlay and cycle through your open windows. Release the modifier key (`Alt`) to switch to the selected application.
 4. To exit, right-click the Quick App Switcher icon in the system tray and select **Exit**.
 
+## Configuration
+
+The app stores its config at `%USERPROFILE%\\.config\\quick-app-switcher\\config.toml`.
+
+Example:
+
+```toml
+show_thumbnails = true
+launch_on_startup = false
+```
+
+Set `launch_on_startup = true` to register the app under the current user's Windows `Run` key. The setting is reconciled on launch, so the stored startup command follows the current executable path.
+
 ## Architecture
 
 The application is structured into several internal packages for clear separation of concerns:
