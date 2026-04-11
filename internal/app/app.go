@@ -69,6 +69,7 @@ type App struct {
 	shuttingDown     atomic.Bool
 	thumbnailWarmWG  sync.WaitGroup
 	releaseModifiers func() error
+	openConfig       func() error
 }
 
 func Run(logger *log.Logger, cfg config.Config) error {
@@ -96,6 +97,7 @@ func Run(logger *log.Logger, cfg config.Config) error {
 		thumbnails: windows.NewThumbnailCache(),
 		mru:        mru.New(),
 	}
+	a.openConfig = a.openConfigFile
 	if err := a.initWindows(); err != nil {
 		a.shutdown()
 		return err
@@ -267,8 +269,7 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 		}
 		return 0
 	case win32.WM_COMMAND:
-		if uint32(wParam&0xffff) == ui.CommandExit {
-			win32.PostQuitMessage(0)
+		if a.handleCommand(uint32(wParam & 0xffff)) {
 			return 0
 		}
 	case win32.WM_DESTROY:
@@ -282,12 +283,35 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 		if msg == msgTray {
 			switch trayNotificationCode(lParam) {
 			case wmContextMenu, win32.WM_RBUTTONUP, ninSelect, ninKeySelect:
-				a.tray.ShowMenu(hwnd, ui.CommandExit)
+				a.tray.ShowMenu(hwnd)
 			}
 			return 0
 		}
 	}
 	return win32.DefWindowProc(hwnd, msg, wParam, lParam)
+}
+
+func (a *App) handleCommand(command uint32) bool {
+	switch command {
+	case ui.CommandOpenConfig:
+		if err := a.openConfig(); err != nil {
+			a.logger.Printf("open config: %v", err)
+		}
+		return true
+	case ui.CommandExit:
+		win32.PostQuitMessage(0)
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *App) openConfigFile() error {
+	path, err := config.Path()
+	if err != nil {
+		return err
+	}
+	return win32.OpenPath(path)
 }
 
 func (a *App) overlayWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uintptr) uintptr {

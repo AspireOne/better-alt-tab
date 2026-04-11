@@ -21,6 +21,31 @@ func TestTrayNotificationCodeUsesLowWord(t *testing.T) {
 	}
 }
 
+func TestHandleCommandOpensConfig(t *testing.T) {
+	a := newTestApp()
+	calls := 0
+	a.openConfig = func() error {
+		calls++
+		return nil
+	}
+
+	handled := a.handleCommand(ui.CommandOpenConfig)
+	if !handled {
+		t.Fatal("expected open config command to be handled")
+	}
+	if calls != 1 {
+		t.Fatalf("got open config calls %d want 1", calls)
+	}
+}
+
+func TestHandleCommandIgnoresUnknownCommand(t *testing.T) {
+	a := newTestApp()
+
+	if a.handleCommand(9999) {
+		t.Fatal("expected unknown command to be ignored")
+	}
+}
+
 func TestNormalizeCandidateIndex(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -293,10 +318,12 @@ func TestCancelSessionWithoutInstantPreviewDoesNotRestoreStartingWindow(t *testi
 }
 
 func newTestApp() *App {
-	return &App{
+	a := &App{
 		logger:  log.New(io.Discard, "", 0),
 		cfg:     config.Default(),
 		mru:     mru.New(),
 		overlay: ui.NewOverlay(0),
 	}
+	a.openConfig = func() error { return nil }
+	return a
 }

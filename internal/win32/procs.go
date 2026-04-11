@@ -77,6 +77,7 @@ var (
 
 	procShellNotifyIconW = shell32.NewProc("Shell_NotifyIconW")
 	procSHGetFileInfoW   = shell32.NewProc("SHGetFileInfoW")
+	procShellExecuteW    = shell32.NewProc("ShellExecuteW")
 
 	procCreateSolidBrush       = gdi32.NewProc("CreateSolidBrush")
 	procCreateCompatibleDC     = gdi32.NewProc("CreateCompatibleDC")

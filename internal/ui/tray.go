@@ -24,6 +24,6 @@ func (t *Tray) Delete(hwnd win32.HWND) error {
 	return win32.DeleteTrayIcon(hwnd)
 }
 
-func (t *Tray) ShowMenu(hwnd win32.HWND, commandID uint32) {
-	win32.ShowTrayMenu(hwnd, commandID)
+func (t *Tray) ShowMenu(hwnd win32.HWND) {
+	win32.ShowTrayMenu(hwnd, CommandOpenConfig, CommandExit)
 }

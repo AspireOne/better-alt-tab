@@ -1,6 +1,7 @@
 package win32
 
 import (
+	"fmt"
 	"path/filepath"
 	"syscall"
 	"unsafe"
@@ -394,7 +395,7 @@ func DeleteTrayIcon(hwnd HWND) error {
 	return nil
 }
 
-func ShowTrayMenu(hwnd HWND, commandID uint32) {
+func ShowTrayMenu(hwnd HWND, openConfigCommandID, exitCommandID uint32) {
 	menu, _, _ := procCreatePopupMenu.Call()
 	if menu == 0 {
 		return
@@ -403,7 +404,9 @@ func ShowTrayMenu(hwnd HWND, commandID uint32) {
 		ignoreSyscall3(procDestroyMenu.Call(menu))
 	}()
 	// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
-	ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(commandID), uintptr(unsafe.Pointer(utf16Ptr("Close")))))
+	ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(openConfigCommandID), uintptr(unsafe.Pointer(utf16Ptr("Open Config File")))))
+	// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
+	ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(exitCommandID), uintptr(unsafe.Pointer(utf16Ptr("Close")))))
 	var pt POINT
 	// #nosec G103 -- Win32 syscall boundary requires passing the POINT output pointer.
 	ignoreSyscall3(procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt))))
@@ -411,6 +414,23 @@ func ShowTrayMenu(hwnd HWND, commandID uint32) {
 	if cmd != 0 {
 		PostMessage(hwnd, WM_COMMAND, cmd, 0)
 	}
+}
+
+func OpenPath(path string) error {
+	r, _, _ := procShellExecuteW.Call(
+		0,
+		// #nosec G103 -- Win32 syscall boundary requires passing a UTF-16 verb pointer.
+		uintptr(unsafe.Pointer(utf16Ptr("open"))),
+		// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 path pointer.
+		uintptr(unsafe.Pointer(utf16Ptr(path))),
+		0,
+		0,
+		SW_SHOW,
+	)
+	if r <= 32 {
+		return fmt.Errorf("ShellExecuteW failed for %q: code %d", path, r)
+	}
+	return nil
 }
 
 func CoInitialize() error {
