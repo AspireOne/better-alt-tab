@@ -168,6 +168,29 @@ func FillRect(hdc HDC, rect *RECT, brush HBRUSH) {
 	ignoreSyscall3(procFillRect.Call(uintptr(hdc), uintptr(unsafe.Pointer(rect)), uintptr(brush)))
 }
 
+func DrawLabel(hdc HDC, rect RECT, text string, color uintptr) {
+	if hdc == 0 || text == "" || rect.Right <= rect.Left || rect.Bottom <= rect.Top {
+		return
+	}
+	oldFont := SelectObject(hdc, HGDIOBJ(defaultGUIFont()))
+	defer SelectObject(hdc, oldFont)
+	ignoreSyscall3(procSetBkMode.Call(uintptr(hdc), TRANSPARENT))
+	ignoreSyscall3(procSetTextColor.Call(uintptr(hdc), color))
+	flags := uintptr(DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX)
+	ignoreSyscall3(procDrawTextW.Call(
+		uintptr(hdc),
+		uintptr(unsafe.Pointer(utf16Ptr(text))),
+		^uintptr(0),
+		uintptr(unsafe.Pointer(&rect)),
+		flags,
+	))
+}
+
+func defaultGUIFont() HFONT {
+	r, _, _ := procGetStockObject.Call(DEFAULT_GUI_FONT)
+	return HFONT(r)
+}
+
 func DrawIconInRect(hdc HDC, rect RECT, icon HICON) {
 	ignoreSyscall3(procDrawIconEx.Call(
 		uintptr(hdc),

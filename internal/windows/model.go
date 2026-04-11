@@ -1,6 +1,11 @@
 package windows
 
-import "quick_app_switcher/internal/win32"
+import (
+	"path/filepath"
+	"strings"
+
+	"quick_app_switcher/internal/win32"
+)
 
 type WindowID uintptr
 
@@ -29,6 +34,19 @@ type WindowInfo struct {
 type InventorySnapshot struct {
 	Order []WindowID
 	ByID  map[WindowID]WindowInfo
+}
+
+func (w WindowInfo) AppDisplayName() string {
+	if w.ExecutablePath != "" {
+		name := strings.TrimSuffix(filepath.Base(w.ExecutablePath), filepath.Ext(w.ExecutablePath))
+		if name != "" && name != "." && name != string(filepath.Separator) {
+			return name
+		}
+	}
+	if w.Title != "" {
+		return w.Title
+	}
+	return w.ClassName
 }
 
 func (s InventorySnapshot) Set() map[WindowID]struct{} {

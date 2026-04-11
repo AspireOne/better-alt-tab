@@ -24,6 +24,14 @@ func TestFitMetricsToWidthPreservesDefaultWhenSpaceAllows(t *testing.T) {
 	}
 }
 
+func TestFitMetricsToWidthIncludesLabelSpace(t *testing.T) {
+	metrics := ComputeMetrics(2)
+	want := metrics.Padding*2 + metrics.ThumbnailHeight + metrics.LabelGap + metrics.LabelHeight
+	if metrics.Height != want {
+		t.Fatalf("height = %d, want %d", metrics.Height, want)
+	}
+}
+
 func TestFitMetricsToWidthCapsOverlayWidthForExtremeCounts(t *testing.T) {
 	metrics := ComputeMetrics(40)
 	fitted := FitMetricsToWidth(metrics, 40, 900)

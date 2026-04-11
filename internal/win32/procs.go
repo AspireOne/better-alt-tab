@@ -65,6 +65,7 @@ var (
 	procEndPaint                   = user32.NewProc("EndPaint")
 	procFillRect                   = user32.NewProc("FillRect")
 	procDrawIconEx                 = user32.NewProc("DrawIconEx")
+	procDrawTextW                  = user32.NewProc("DrawTextW")
 	procMonitorFromWindow          = user32.NewProc("MonitorFromWindow")
 	procGetMonitorInfoW            = user32.NewProc("GetMonitorInfoW")
 	procSendInput                  = user32.NewProc("SendInput")
@@ -85,6 +86,9 @@ var (
 	procStretchBlt             = gdi32.NewProc("StretchBlt")
 	procSetStretchBltMode      = gdi32.NewProc("SetStretchBltMode")
 	procDeleteObject           = gdi32.NewProc("DeleteObject")
+	procSetBkMode              = gdi32.NewProc("SetBkMode")
+	procSetTextColor           = gdi32.NewProc("SetTextColor")
+	procGetStockObject         = gdi32.NewProc("GetStockObject")
 
 	procCoInitializeEx   = ole32.NewProc("CoInitializeEx")
 	procCoUninitialize   = ole32.NewProc("CoUninitialize")

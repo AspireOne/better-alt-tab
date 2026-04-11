@@ -8,6 +8,8 @@ type OverlayMetrics struct {
 	ThumbnailWidth  int32
 	ThumbnailHeight int32
 	IconSize        int32
+	LabelHeight     int32
+	LabelGap        int32
 	Padding         int32
 	Gap             int32
 	SelectionInset  int32
@@ -17,8 +19,9 @@ func ComputeMetrics(count int) OverlayMetrics {
 	metrics := OverlayMetrics{
 		ThumbnailWidth:  180,
 		ThumbnailHeight: 110,
-		Height:          142,
 		IconSize:        20,
+		LabelHeight:     18,
+		LabelGap:        6,
 		Padding:         16,
 		Gap:             16,
 		SelectionInset:  4,
@@ -78,7 +81,7 @@ func FitMetricsToWidth(metrics OverlayMetrics, count int, maxWidth int32) Overla
 		}
 	}
 	metrics.Width = metrics.Padding*2 + metrics.ThumbnailWidth*count32 + metrics.Gap*(count32-1)
-	metrics.Height = metrics.Padding*2 + metrics.ThumbnailHeight
+	metrics.Height = metrics.Padding*2 + metrics.ThumbnailHeight + metrics.LabelGap + metrics.LabelHeight
 	return metrics
 }
 

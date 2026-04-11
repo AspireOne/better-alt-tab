@@ -11,6 +11,7 @@ type (
 	HICON     uintptr
 	HCURSOR   uintptr
 	HBRUSH    uintptr
+	HFONT     uintptr
 	HDC       uintptr
 	HBITMAP   uintptr
 	HGDIOBJ   uintptr
@@ -241,4 +242,13 @@ const (
 	CAPTUREBLT           = 0x40000000
 	HALFTONE             = 4
 	PW_RENDERFULLCONTENT = 0x00000002
+
+	TRANSPARENT      = 1
+	DEFAULT_GUI_FONT = 17
+
+	DT_CENTER       = 0x00000001
+	DT_VCENTER      = 0x00000004
+	DT_SINGLELINE   = 0x00000020
+	DT_END_ELLIPSIS = 0x00008000
+	DT_NOPREFIX     = 0x00000800
 )

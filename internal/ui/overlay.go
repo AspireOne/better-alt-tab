@@ -79,7 +79,7 @@ func (o *Overlay) Paint(hwnd win32.HWND, icons *windows.IconCache, thumbnails *w
 			Left:   left - metrics.SelectionInset,
 			Top:    metrics.Padding - metrics.SelectionInset,
 			Right:  left + metrics.ThumbnailWidth + metrics.SelectionInset,
-			Bottom: metrics.Padding + metrics.ThumbnailHeight + metrics.SelectionInset,
+			Bottom: metrics.Padding + metrics.ThumbnailHeight + metrics.LabelGap + metrics.LabelHeight + metrics.SelectionInset,
 		}
 		if !rectsIntersect(rect, selectionRect) {
 			left += metrics.ThumbnailWidth + metrics.Gap
@@ -152,6 +152,18 @@ func (o *Overlay) Paint(hwnd win32.HWND, icons *windows.IconCache, thumbnails *w
 		}
 		win32.DrawIconInRect(hdc, iconRect, icons.IconFor(item))
 
+		labelRect := win32.RECT{
+			Left:   thumbRect.Left,
+			Top:    thumbRect.Bottom + metrics.LabelGap,
+			Right:  thumbRect.Right,
+			Bottom: thumbRect.Bottom + metrics.LabelGap + metrics.LabelHeight,
+		}
+		labelColor := uintptr(0x00d8d8d8)
+		if i == o.data.Selected {
+			labelColor = 0x00ffffff
+		}
+		win32.DrawLabel(hdc, labelRect, item.AppDisplayName(), labelColor)
+
 		left += metrics.ThumbnailWidth + metrics.Gap
 	}
 }
@@ -169,7 +181,7 @@ func itemSelectionRect(index int, metrics OverlayMetrics) win32.RECT {
 		Left:   left - metrics.SelectionInset,
 		Top:    metrics.Padding - metrics.SelectionInset,
 		Right:  left + metrics.ThumbnailWidth + metrics.SelectionInset,
-		Bottom: metrics.Padding + metrics.ThumbnailHeight + metrics.SelectionInset,
+		Bottom: metrics.Padding + metrics.ThumbnailHeight + metrics.LabelGap + metrics.LabelHeight + metrics.SelectionInset,
 	}
 }
 
