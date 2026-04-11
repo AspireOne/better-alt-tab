@@ -81,7 +81,7 @@ func GetCurrentThreadID() uint32 {
 }
 
 func RegisterWindowClass(className string, wndProc uintptr, instance HINSTANCE, icon HICON) (uint16, error) {
-	cursor, _, _ := procLoadIconW.Call(0, IDI_APPLICATION)
+	cursor, _, _ := procLoadCursorW.Call(0, IDC_ARROW)
 	wc := WNDCLASSEX{
 		Size:      uint32(unsafe.Sizeof(WNDCLASSEX{})),
 		Style:     CS_HREDRAW | CS_VREDRAW,

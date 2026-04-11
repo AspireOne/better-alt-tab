@@ -56,6 +56,7 @@ var (
 	procSetLayeredWindowAttributes = user32.NewProc("SetLayeredWindowAttributes")
 	procInvalidateRect             = user32.NewProc("InvalidateRect")
 	procLoadIconW                  = user32.NewProc("LoadIconW")
+	procLoadCursorW                = user32.NewProc("LoadCursorW")
 	procSetWinEventHook            = user32.NewProc("SetWinEventHook")
 	procUnhookWinEvent             = user32.NewProc("UnhookWinEvent")
 	procRegisterWindowMessageW     = user32.NewProc("RegisterWindowMessageW")
