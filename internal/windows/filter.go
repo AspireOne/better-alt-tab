@@ -10,7 +10,28 @@ func (f Filter) Eligible(info WindowInfo, all map[WindowID]WindowInfo) bool {
 	if !f.baseEligible(info) {
 		return false
 	}
-	return f.representativeFor(info, all) == info.ID
+	return f.representativeFor(info, func(id WindowID) (WindowInfo, bool) {
+		info, ok := all[id]
+		return info, ok
+	}) == info.ID
+}
+
+func (f Filter) EligibleTarget(info, rootInfo, popupInfo WindowInfo) bool {
+	if !f.baseEligible(info) {
+		return false
+	}
+	return f.representativeFor(info, func(id WindowID) (WindowInfo, bool) {
+		switch id {
+		case info.ID:
+			return info, true
+		case rootInfo.ID:
+			return rootInfo, true
+		case popupInfo.ID:
+			return popupInfo, true
+		default:
+			return WindowInfo{}, false
+		}
+	}) == info.ID
 }
 
 func (f Filter) baseEligible(info WindowInfo) bool {
@@ -32,13 +53,13 @@ func (f Filter) baseEligible(info WindowInfo) bool {
 	return true
 }
 
-func (f Filter) representativeFor(info WindowInfo, all map[WindowID]WindowInfo) WindowID {
+func (f Filter) representativeFor(info WindowInfo, lookup func(WindowID) (WindowInfo, bool)) WindowID {
 	rootID := info.RootOwner
 	if rootID == 0 {
 		rootID = info.ID
 	}
 
-	rootInfo, ok := all[rootID]
+	rootInfo, ok := lookup(rootID)
 	if !ok {
 		rootInfo = info
 		rootID = info.ID
@@ -46,12 +67,12 @@ func (f Filter) representativeFor(info WindowInfo, all map[WindowID]WindowInfo) 
 
 	targetID := rootID
 	if popupID := rootInfo.LastActivePopup; popupID != 0 && popupID != rootID {
-		if popup, ok := all[popupID]; ok && f.baseEligible(popup) {
+		if popup, ok := lookup(popupID); ok && f.baseEligible(popup) {
 			targetID = popupID
 		}
 	}
 
-	targetInfo, ok := all[targetID]
+	targetInfo, ok := lookup(targetID)
 	if !ok || !f.baseEligible(targetInfo) {
 		return 0
 	}

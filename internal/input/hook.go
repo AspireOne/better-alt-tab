@@ -112,6 +112,7 @@ func (h *Hook) proc(code int32, wParam uintptr, lParam uintptr) uintptr {
 			if h.ownedSession {
 				win32.PostMessage(h.target, h.messageAltUp, 0, 0)
 				h.ownedSession = false
+				return 1
 			}
 		}
 	case win32.VK_TAB:

@@ -44,6 +44,7 @@ func (i *Inventory) Snapshot() (InventorySnapshot, error) {
 	return InventorySnapshot{Order: order, ByID: byID}, nil
 }
 
+// IsValidSwitchable rebuilds a full snapshot. Do not use it from hot paths.
 func (i *Inventory) IsValidSwitchable(id WindowID) bool {
 	snapshot, err := i.Snapshot()
 	if err != nil {
@@ -51,6 +52,34 @@ func (i *Inventory) IsValidSwitchable(id WindowID) bool {
 	}
 	_, ok := snapshot.ByID[id]
 	return ok
+}
+
+// IsValidSwitchTarget performs bounded single-window validation for hot paths.
+func (i *Inventory) IsValidSwitchTarget(id WindowID) bool {
+	if id == 0 {
+		return false
+	}
+
+	info := i.inspectWindowForEligibility(id.HWND())
+	if info.ID == 0 {
+		return false
+	}
+
+	rootInfo := info
+	if info.RootOwner != 0 && info.RootOwner != info.ID {
+		rootInfo = i.inspectWindowForEligibility(info.RootOwner.HWND())
+	}
+
+	var popupInfo WindowInfo
+	if rootInfo.ID != 0 && rootInfo.LastActivePopup != 0 && rootInfo.LastActivePopup != rootInfo.ID {
+		if rootInfo.LastActivePopup == info.ID {
+			popupInfo = info
+		} else {
+			popupInfo = i.inspectWindowForEligibility(rootInfo.LastActivePopup.HWND())
+		}
+	}
+
+	return i.filter.EligibleTarget(info, rootInfo, popupInfo)
 }
 
 func (i *Inventory) inspectWindow(hwnd win32.HWND) WindowInfo {
@@ -74,4 +103,24 @@ func (i *Inventory) inspectWindow(hwnd win32.HWND) WindowInfo {
 		ClassName:        win32.GetClassName(hwnd),
 	}
 	return info
+}
+
+// inspectWindowForEligibility is the hot-path subset required by Filter.baseEligible.
+func (i *Inventory) inspectWindowForEligibility(hwnd win32.HWND) WindowInfo {
+	if !win32.IsWindow(hwnd) {
+		return WindowInfo{}
+	}
+	return WindowInfo{
+		ID:               WindowID(hwnd),
+		Visible:          win32.IsWindowVisible(hwnd),
+		Minimized:        win32.IsIconic(hwnd),
+		Cloaked:          win32.IsWindowCloaked(hwnd),
+		OnCurrentDesktop: i.desktop == nil || i.desktop.IsWindowOnCurrentDesktop(hwnd),
+		Style:            win32.GetWindowStyle(hwnd),
+		ExStyle:          win32.GetWindowExStyle(hwnd),
+		Owner:            WindowID(win32.GetWindow(hwnd, win32.GW_OWNER)),
+		RootOwner:        WindowID(win32.GetAncestor(hwnd, win32.GA_ROOTOWNER)),
+		LastActivePopup:  WindowID(win32.GetLastActivePopup(hwnd)),
+		ClassName:        win32.GetClassName(hwnd),
+	}
 }

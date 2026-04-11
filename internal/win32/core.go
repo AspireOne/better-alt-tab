@@ -2,9 +2,27 @@ package win32
 
 import (
 	"errors"
+	"sync"
 	"syscall"
 	"unsafe"
 )
+
+var (
+	enumWindowsMu      sync.Mutex
+	enumWindowsCurrent func(HWND) bool
+	enumWindowsThunk   = syscall.NewCallback(enumWindowsProc)
+)
+
+// enumWindowsProc is a reusable callback bridge; EnumWindows is serialized and not reentrant.
+func enumWindowsProc(hwnd uintptr, _ uintptr) uintptr {
+	if enumWindowsCurrent == nil {
+		return 0
+	}
+	if enumWindowsCurrent(HWND(hwnd)) {
+		return 1
+	}
+	return 0
+}
 
 func utf16Ptr(s string) *uint16 {
 	ptr, _ := syscall.UTF16PtrFromString(s)
@@ -145,13 +163,19 @@ func UnhookWindowsHook(hook Handle) error {
 }
 
 func EnumWindows(cb func(HWND) bool) error {
-	callback := syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
-		if cb(HWND(hwnd)) {
-			return 1
-		}
-		return 0
-	})
-	r, _, err := procEnumWindows.Call(callback, 0)
+	if cb == nil {
+		return errors.New("EnumWindows callback is nil")
+	}
+
+	enumWindowsMu.Lock()
+	enumWindowsCurrent = cb
+	defer func() {
+		enumWindowsCurrent = nil
+		enumWindowsMu.Unlock()
+	}()
+
+	r, _, err := procEnumWindows.Call(enumWindowsThunk, 0)
+
 	if r == 0 && err != syscall.Errno(0) {
 		return err
 	}

@@ -15,13 +15,30 @@ func (s *Store) MoveToFront(id windows.WindowID) {
 	if id == 0 {
 		return
 	}
-	s.Remove(id)
-	s.order = append([]windows.WindowID{id}, s.order...)
+	if len(s.order) > 0 && s.order[0] == id {
+		return
+	}
+	if _, ok := s.set[id]; ok {
+		for i := 1; i < len(s.order); i++ {
+			if s.order[i] != id {
+				continue
+			}
+			copy(s.order[1:i+1], s.order[:i])
+			s.order[0] = id
+			return
+		}
+	}
+	s.order = append(s.order, 0)
+	copy(s.order[1:], s.order[:len(s.order)-1])
+	s.order[0] = id
 	s.set[id] = struct{}{}
 }
 
 func (s *Store) Remove(id windows.WindowID) {
 	if id == 0 || len(s.order) == 0 {
+		return
+	}
+	if _, ok := s.set[id]; !ok {
 		return
 	}
 	for i, existing := range s.order {

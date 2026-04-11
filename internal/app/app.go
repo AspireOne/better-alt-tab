@@ -284,7 +284,7 @@ func (a *App) onForegroundChanged(hwnd uintptr) {
 	if id == 0 {
 		return
 	}
-	if a.inventory.IsValidSwitchable(id) {
+	if a.inventory.IsValidSwitchTarget(id) {
 		a.mru.MoveToFront(id)
 	}
 }
@@ -362,7 +362,7 @@ func (a *App) onAltReleased() {
 }
 
 func (a *App) commitSelection(selected windows.WindowID) error {
-	if a.inventory.IsValidSwitchable(selected) {
+	if a.inventory.IsValidSwitchTarget(selected) {
 		if err := windows.Activate(selected); err == nil {
 			a.mru.MoveToFront(selected)
 			return nil
@@ -399,7 +399,7 @@ func (a *App) nextValidCandidateAfterSelected() (windows.WindowID, bool) {
 		if candidate == 0 || candidate == a.session.Candidates[a.session.SelectedIndex] {
 			continue
 		}
-		if a.inventory.IsValidSwitchable(candidate) {
+		if a.inventory.IsValidSwitchTarget(candidate) {
 			return candidate, true
 		}
 	}

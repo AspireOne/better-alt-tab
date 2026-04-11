@@ -65,3 +65,66 @@ func TestEligibleRejectsOwnedPopupWhenRootOwnsSwitchTarget(t *testing.T) {
 		t.Fatal("expected owned popup to be excluded when root owner is the switch target")
 	}
 }
+
+func TestEligibleTargetMatchesSnapshotEligibilityForLastActivePopup(t *testing.T) {
+	filter := Filter{}
+	root := WindowInfo{
+		ID:               10,
+		RootOwner:        10,
+		LastActivePopup:  20,
+		OnCurrentDesktop: true,
+		ClassName:        "Root",
+	}
+	popup := WindowInfo{
+		ID:               20,
+		Owner:            10,
+		RootOwner:        10,
+		LastActivePopup:  20,
+		OnCurrentDesktop: true,
+		Visible:          true,
+		ClassName:        "Dialog",
+	}
+	all := map[WindowID]WindowInfo{
+		root.ID:  root,
+		popup.ID: popup,
+	}
+
+	if got, want := filter.EligibleTarget(popup, root, popup), filter.Eligible(popup, all); got != want {
+		t.Fatalf("EligibleTarget(popup) = %v, want %v", got, want)
+	}
+	if got, want := filter.EligibleTarget(root, root, popup), filter.Eligible(root, all); got != want {
+		t.Fatalf("EligibleTarget(root) = %v, want %v", got, want)
+	}
+}
+
+func TestEligibleTargetMatchesSnapshotEligibilityWhenRootOwnsSwitchTarget(t *testing.T) {
+	filter := Filter{}
+	root := WindowInfo{
+		ID:               10,
+		RootOwner:        10,
+		LastActivePopup:  10,
+		OnCurrentDesktop: true,
+		Visible:          true,
+		ClassName:        "Root",
+	}
+	popup := WindowInfo{
+		ID:               20,
+		Owner:            10,
+		RootOwner:        10,
+		LastActivePopup:  20,
+		OnCurrentDesktop: true,
+		Visible:          true,
+		ClassName:        "Dialog",
+	}
+	all := map[WindowID]WindowInfo{
+		root.ID:  root,
+		popup.ID: popup,
+	}
+
+	if got, want := filter.EligibleTarget(root, root, WindowInfo{}), filter.Eligible(root, all); got != want {
+		t.Fatalf("EligibleTarget(root) = %v, want %v", got, want)
+	}
+	if got, want := filter.EligibleTarget(popup, root, WindowInfo{}), filter.Eligible(popup, all); got != want {
+		t.Fatalf("EligibleTarget(popup) = %v, want %v", got, want)
+	}
+}

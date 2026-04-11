@@ -31,3 +31,16 @@ func TestMoveToFrontDeduplicates(t *testing.T) {
 		t.Fatalf("got %v want %v", got, want)
 	}
 }
+
+func TestMoveToFrontExistingIDDoesNotAllocate(t *testing.T) {
+	store := New()
+	store.Seed([]windows.WindowID{1, 2, 3, 4})
+
+	allocs := testing.AllocsPerRun(100, func() {
+		store.MoveToFront(4)
+		store.MoveToFront(1)
+	})
+	if allocs != 0 {
+		t.Fatalf("MoveToFront allocated for existing IDs: got %v want 0", allocs)
+	}
+}
