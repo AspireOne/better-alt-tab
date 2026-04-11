@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 
@@ -29,6 +31,7 @@ const (
 	msgForegroundChanged = win32.WM_APP + 4
 	msgTray              = win32.WM_APP + 5
 	msgShutdownRequested = win32.WM_APP + 6
+	msgThumbnailsReady   = win32.WM_APP + 7
 
 	wmUser        = 0x0400
 	ninSelect     = wmUser + 0
@@ -49,12 +52,15 @@ type App struct {
 	desktop      *windows.DesktopManager
 	inventory    *windows.Inventory
 	icons        *windows.IconCache
+	thumbnails   *windows.ThumbnailCache
 	mru          *mru.Store
 	session      session.SwitchSession
 	lastSnapshot windows.InventorySnapshot
 
-	windowProc  uintptr
-	overlayProc uintptr
+	windowProc      uintptr
+	overlayProc     uintptr
+	shuttingDown    atomic.Bool
+	thumbnailWarmWG sync.WaitGroup
 }
 
 func Run(logger *log.Logger) error {
@@ -75,10 +81,11 @@ func Run(logger *log.Logger) error {
 	defer win32.CoUninitialize()
 
 	a := &App{
-		logger: logger,
-		tray:   ui.NewTray(msgTray, "Quick App Switcher"),
-		icons:  windows.NewIconCache(),
-		mru:    mru.New(),
+		logger:     logger,
+		tray:       ui.NewTray(msgTray, "Quick App Switcher"),
+		icons:      windows.NewIconCache(),
+		thumbnails: windows.NewThumbnailCache(),
+		mru:        mru.New(),
 	}
 	if err := a.initWindows(); err != nil {
 		a.shutdown()
@@ -170,6 +177,7 @@ func (a *App) refreshSnapshot() error {
 }
 
 func (a *App) shutdown() {
+	a.shuttingDown.Store(true)
 	if a.hook != nil {
 		_ = a.hook.Close()
 	}
@@ -181,6 +189,10 @@ func (a *App) shutdown() {
 	}
 	if a.overlay != nil {
 		a.overlay.Hide()
+	}
+	a.thumbnailWarmWG.Wait()
+	if a.thumbnails != nil {
+		a.thumbnails.Close()
 	}
 	if a.desktop != nil {
 		a.desktop.Close()
@@ -216,6 +228,9 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 		win32.PostQuitMessage(0)
 		return 0
 	case msgHookTabPressed:
+		if a.shuttingDown.Load() {
+			return 0
+		}
 		a.onTabPressed()
 		return 0
 	case msgHookAltReleased:
@@ -226,6 +241,11 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 		return 0
 	case msgForegroundChanged:
 		a.onForegroundChanged(wParam)
+		return 0
+	case msgThumbnailsReady:
+		if !a.shuttingDown.Load() && a.session.State == session.StateCycling {
+			a.overlay.RefreshThumbnails()
+		}
 		return 0
 	case win32.WM_COMMAND:
 		if uint32(wParam&0xffff) == ui.CommandExit {
@@ -253,7 +273,7 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 
 func (a *App) overlayWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uintptr) uintptr {
 	if msg == win32.WM_PAINT {
-		a.overlay.Paint(hwnd, a.icons)
+		a.overlay.Paint(hwnd, a.icons, a.thumbnails)
 		return 0
 	}
 	return win32.DefWindowProc(hwnd, msg, wParam, lParam)
@@ -272,7 +292,7 @@ func (a *App) onForegroundChanged(hwnd uintptr) {
 func (a *App) onTabPressed() {
 	if a.session.State == session.StateCycling {
 		a.session.Advance()
-		a.renderOverlay()
+		a.overlay.UpdateSelection(a.session.SelectedIndex)
 		return
 	}
 	if err := a.refreshSnapshot(); err != nil {
@@ -284,10 +304,22 @@ func (a *App) onTabPressed() {
 	if !a.session.Start(candidates, startedFrom) {
 		return
 	}
-	a.renderOverlay()
+	items, metrics := a.renderOverlay()
+	a.warmSessionThumbnailsAsync(items, metrics)
 }
 
-func (a *App) renderOverlay() {
+func (a *App) renderOverlay() ([]windows.WindowInfo, ui.OverlayMetrics) {
+	items := a.sessionItems()
+	anchor := a.session.StartedFrom.HWND()
+	if anchor == 0 {
+		anchor = win32.GetForegroundWindow()
+	}
+	metrics := ui.ComputeMetricsForAnchor(anchor, len(items))
+	a.overlay.UpdateWithMetrics(anchor, items, a.session.SelectedIndex, metrics)
+	return items, metrics
+}
+
+func (a *App) sessionItems() []windows.WindowInfo {
 	items := make([]windows.WindowInfo, 0, len(a.session.Candidates))
 	for _, id := range a.session.Candidates {
 		info, ok := a.lastSnapshot.ByID[id]
@@ -296,11 +328,25 @@ func (a *App) renderOverlay() {
 		}
 		items = append(items, info)
 	}
-	anchor := a.session.StartedFrom.HWND()
-	if anchor == 0 {
-		anchor = win32.GetForegroundWindow()
+	return items
+}
+
+func (a *App) warmSessionThumbnailsAsync(items []windows.WindowInfo, metrics ui.OverlayMetrics) {
+	if a.thumbnails == nil || a.shuttingDown.Load() {
+		return
 	}
-	a.overlay.Update(anchor, items, a.session.SelectedIndex)
+	controller := a.controllerHwnd
+	a.thumbnailWarmWG.Add(1)
+	go func() {
+		defer a.thumbnailWarmWG.Done()
+		if a.shuttingDown.Load() {
+			return
+		}
+		a.thumbnails.Warm(items, metrics.ThumbnailWidth, metrics.ThumbnailHeight)
+		if !a.shuttingDown.Load() && controller != 0 {
+			win32.PostMessage(controller, msgThumbnailsReady, 0, 0)
+		}
+	}()
 }
 
 func (a *App) onAltReleased() {

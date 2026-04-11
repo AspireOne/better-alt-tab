@@ -13,6 +13,7 @@ type (
 	HBRUSH    uintptr
 	HDC       uintptr
 	HBITMAP   uintptr
+	HGDIOBJ   uintptr
 	HMONITOR  uintptr
 	HINSTANCE uintptr
 	HMENU     uintptr
@@ -213,4 +214,9 @@ const (
 	CLSCTX_INPROC_SERVER = 0x1
 
 	MAX_PATH = syscall.MAX_PATH
+
+	SRCCOPY              = 0x00CC0020
+	CAPTUREBLT           = 0x40000000
+	HALFTONE             = 4
+	PW_RENDERFULLCONTENT = 0x00000002
 )

@@ -216,6 +216,12 @@ func GetLastActivePopup(hwnd HWND) HWND {
 	return HWND(r)
 }
 
+func GetWindowRect(hwnd HWND) (RECT, bool) {
+	var rect RECT
+	r, _, _ := procGetWindowRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&rect)))
+	return rect, r != 0
+}
+
 func ShowWindow(hwnd HWND, cmd int32) bool {
 	r, _, _ := procShowWindow.Call(uintptr(hwnd), uintptr(cmd))
 	return r != 0
@@ -229,4 +235,18 @@ func SetForegroundWindow(hwnd HWND) bool {
 func GetForegroundWindow() HWND {
 	r, _, _ := procGetForegroundWindow.Call()
 	return HWND(r)
+}
+
+func GetDC(hwnd HWND) HDC {
+	r, _, _ := procGetDC.Call(uintptr(hwnd))
+	return HDC(r)
+}
+
+func GetWindowDC(hwnd HWND) HDC {
+	r, _, _ := procGetWindowDC.Call(uintptr(hwnd))
+	return HDC(r)
+}
+
+func ReleaseDC(hwnd HWND, hdc HDC) {
+	ignoreSyscall3(procReleaseDC.Call(uintptr(hwnd), uintptr(hdc)))
 }

@@ -28,6 +28,10 @@ func InvalidateRect(hwnd HWND) {
 	ignoreSyscall3(procInvalidateRect.Call(uintptr(hwnd), 0, 1))
 }
 
+func InvalidateRectArea(hwnd HWND, rect RECT) {
+	ignoreSyscall3(procInvalidateRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&rect)), 0))
+}
+
 func LoadDefaultApplicationIcon() HICON {
 	r, _, _ := procLoadIconW.Call(0, IDI_APPLICATION)
 	return HICON(r)
@@ -67,6 +71,25 @@ func CreateSolidBrush(color uintptr) HBRUSH {
 	return HBRUSH(r)
 }
 
+func CreateCompatibleDC(hdc HDC) HDC {
+	r, _, _ := procCreateCompatibleDC.Call(uintptr(hdc))
+	return HDC(r)
+}
+
+func DeleteDC(hdc HDC) {
+	ignoreSyscall3(procDeleteDC.Call(uintptr(hdc)))
+}
+
+func CreateCompatibleBitmap(hdc HDC, width, height int32) HBITMAP {
+	r, _, _ := procCreateCompatibleBitmap.Call(uintptr(hdc), uintptr(width), uintptr(height))
+	return HBITMAP(r)
+}
+
+func SelectObject(hdc HDC, obj HGDIOBJ) HGDIOBJ {
+	r, _, _ := procSelectObject.Call(uintptr(hdc), uintptr(obj))
+	return HGDIOBJ(r)
+}
+
 func DeleteObject(obj uintptr) {
 	ignoreSyscall3(procDeleteObject.Call(obj))
 }
@@ -97,6 +120,74 @@ func DrawIconInRect(hdc HDC, rect RECT, icon HICON) {
 		0,
 		3,
 	))
+}
+
+func SetStretchBltMode(hdc HDC, mode int32) {
+	ignoreSyscall3(procSetStretchBltMode.Call(uintptr(hdc), uintptr(mode)))
+}
+
+func BitBlt(dst HDC, x, y, width, height int32, src HDC, srcX, srcY int32, rop uint32) bool {
+	r, _, _ := procBitBlt.Call(
+		uintptr(dst),
+		uintptr(x),
+		uintptr(y),
+		uintptr(width),
+		uintptr(height),
+		uintptr(src),
+		uintptr(srcX),
+		uintptr(srcY),
+		uintptr(rop),
+	)
+	return r != 0
+}
+
+func StretchBlt(dst HDC, x, y, width, height int32, src HDC, srcX, srcY, srcWidth, srcHeight int32, rop uint32) bool {
+	r, _, _ := procStretchBlt.Call(
+		uintptr(dst),
+		uintptr(x),
+		uintptr(y),
+		uintptr(width),
+		uintptr(height),
+		uintptr(src),
+		uintptr(srcX),
+		uintptr(srcY),
+		uintptr(srcWidth),
+		uintptr(srcHeight),
+		uintptr(rop),
+	)
+	return r != 0
+}
+
+func PrintWindow(hwnd HWND, hdc HDC, flags uint32) bool {
+	r, _, _ := procPrintWindow.Call(uintptr(hwnd), uintptr(hdc), uintptr(flags))
+	return r != 0
+}
+
+func DrawBitmapInRect(hdc HDC, rect RECT, bitmap HBITMAP, srcWidth, srcHeight int32) bool {
+	if hdc == 0 || bitmap == 0 || srcWidth <= 0 || srcHeight <= 0 {
+		return false
+	}
+	memDC := CreateCompatibleDC(hdc)
+	if memDC == 0 {
+		return false
+	}
+	defer DeleteDC(memDC)
+	old := SelectObject(memDC, HGDIOBJ(bitmap))
+	defer SelectObject(memDC, old)
+	SetStretchBltMode(hdc, HALFTONE)
+	return StretchBlt(
+		hdc,
+		rect.Left,
+		rect.Top,
+		rect.Right-rect.Left,
+		rect.Bottom-rect.Top,
+		memDC,
+		0,
+		0,
+		srcWidth,
+		srcHeight,
+		SRCCOPY,
+	)
 }
 
 func MonitorFromWindow(hwnd HWND) HMONITOR {
