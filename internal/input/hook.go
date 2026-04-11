@@ -109,6 +109,8 @@ func (h *Hook) proc(code int32, wParam uintptr, lParam uintptr) uintptr {
 	if code < 0 {
 		return win32.CallNextHook(h.hook, code, wParam, lParam)
 	}
+	// #nosec G103 -- Low-level keyboard hooks receive a KBDLLHOOKSTRUCT pointer in lParam.
+	//nolint:govet // Windows passes lParam as a live hook-struct pointer for the callback duration.
 	data := *(*win32.KBDLLHOOKSTRUCT)(unsafe.Pointer(lParam))
 	decision := h.handleKey(data.VKCode, data.Flags)
 	if decision.postTab {
@@ -168,5 +170,6 @@ func (h *Hook) handleKey(vkCode, flags uint32) keyDecision {
 
 func ensureMessageQueue() {
 	var msg win32.MSG
+	// #nosec G103 -- PeekMessageW initializes the thread's message queue via the MSG buffer.
 	_, _, _ = procPeekMessageW.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0, pmNoRemove)
 }

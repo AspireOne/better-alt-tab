@@ -31,6 +31,25 @@ func utf16Ptr(s string) *uint16 {
 
 func ignoreSyscall3(_, _ uintptr, _ error) {}
 
+func uint32FromRet(r uintptr) uint32 {
+	// #nosec G115 -- Windows zero-extends 32-bit return values through uintptr.
+	return uint32(r & 0xffffffff)
+}
+
+func uint16FromRet(r uintptr) uint16 {
+	// #nosec G115 -- RegisterClassExW returns an ATOM in the low 16 bits.
+	return uint16(r & 0xffff)
+}
+
+func uintptrFromInt32(v int32) uintptr {
+	// #nosec G115 -- Win32 marshals signed 32-bit arguments through uintptr.
+	return uintptr(uint32(v))
+}
+
+func hresultFailed(r uintptr) bool {
+	return r&(uintptr(1)<<31) != 0
+}
+
 func lastErr() error {
 	r, _, _ := procGetLastError.Call()
 	if r == 0 {
@@ -40,6 +59,7 @@ func lastErr() error {
 }
 
 func CreateNamedMutex(name string) (Handle, bool, error) {
+	// #nosec G103 -- Win32 syscall boundary requires passing a UTF-16 pointer.
 	r, _, err := procCreateMutexW.Call(0, 0, uintptr(unsafe.Pointer(utf16Ptr(name))))
 	if r == 0 {
 		return 0, false, err
@@ -57,7 +77,7 @@ func CloseHandle(handle Handle) error {
 
 func GetCurrentThreadID() uint32 {
 	r, _, _ := procGetCurrentThreadId.Call()
-	return uint32(r)
+	return uint32FromRet(r)
 }
 
 func RegisterWindowClass(className string, wndProc uintptr, instance HINSTANCE, icon HICON) (uint16, error) {
@@ -71,17 +91,20 @@ func RegisterWindowClass(className string, wndProc uintptr, instance HINSTANCE, 
 		Cursor:    HCURSOR(cursor),
 		ClassName: utf16Ptr(className),
 	}
+	// #nosec G103 -- Win32 syscall boundary requires passing the class struct pointer.
 	r, _, err := procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
 	if r == 0 {
 		return 0, err
 	}
-	return uint16(r), nil
+	return uint16FromRet(r), nil
 }
 
 func CreateWindow(exStyle, style uint32, className, windowName string, instance HINSTANCE, lpParam uintptr) (HWND, error) {
 	r, _, err := procCreateWindowExW.Call(
 		uintptr(exStyle),
+		// #nosec G103 -- Win32 syscall boundary requires passing a UTF-16 pointer.
 		uintptr(unsafe.Pointer(utf16Ptr(className))),
+		// #nosec G103 -- Win32 syscall boundary requires passing a UTF-16 pointer.
 		uintptr(unsafe.Pointer(utf16Ptr(windowName))),
 		uintptr(style),
 		0, 0, 0, 0,
@@ -105,9 +128,10 @@ func DestroyWindow(hwnd HWND) {
 }
 
 func GetMessage(msg *MSG, hwnd HWND, min, max uint32) (bool, error) {
+	// #nosec G103 -- Win32 syscall boundary requires passing the MSG buffer pointer.
 	r, _, err := procGetMessageW.Call(uintptr(unsafe.Pointer(msg)), uintptr(hwnd), uintptr(min), uintptr(max))
-	switch int32(r) {
-	case -1:
+	switch r {
+	case ^uintptr(0):
 		if err != syscall.Errno(0) {
 			return false, err
 		}
@@ -120,15 +144,17 @@ func GetMessage(msg *MSG, hwnd HWND, min, max uint32) (bool, error) {
 }
 
 func TranslateMessage(msg *MSG) {
+	// #nosec G103 -- Win32 syscall boundary requires passing the MSG buffer pointer.
 	ignoreSyscall3(procTranslateMessage.Call(uintptr(unsafe.Pointer(msg))))
 }
 
 func DispatchMessage(msg *MSG) {
+	// #nosec G103 -- Win32 syscall boundary requires passing the MSG buffer pointer.
 	ignoreSyscall3(procDispatchMessageW.Call(uintptr(unsafe.Pointer(msg))))
 }
 
 func PostQuitMessage(code int32) {
-	ignoreSyscall3(procPostQuitMessage.Call(uintptr(code)))
+	ignoreSyscall3(procPostQuitMessage.Call(uintptrFromInt32(code)))
 }
 
 func PostMessage(hwnd HWND, msg uint32, wParam, lParam uintptr) bool {
@@ -150,7 +176,7 @@ func SetKeyboardHook(callback uintptr) (Handle, error) {
 }
 
 func CallNextHook(hook Handle, code int32, wParam, lParam uintptr) uintptr {
-	r, _, _ := procCallNextHookEx.Call(uintptr(hook), uintptr(code), wParam, lParam)
+	r, _, _ := procCallNextHookEx.Call(uintptr(hook), uintptrFromInt32(code), wParam, lParam)
 	return r
 }
 
@@ -203,25 +229,25 @@ func GetWindowText(hwnd HWND) string {
 		return ""
 	}
 	buf := make([]uint16, n+1)
+	// #nosec G103 -- Win32 syscall boundary requires passing the destination UTF-16 buffer.
 	ignoreSyscall3(procGetWindowTextW.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf))))
 	return syscall.UTF16ToString(buf)
 }
 
 func GetWindowProcessID(hwnd HWND) uint32 {
 	var pid uint32
+	// #nosec G103 -- Win32 syscall boundary requires passing the process ID output pointer.
 	ignoreSyscall3(procGetWindowThreadProcessId.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&pid))))
 	return pid
 }
 
 func GetWindowStyle(hwnd HWND) uintptr {
-	index := int32(GWL_STYLE)
-	r, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), uintptr(index))
+	r, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), uintptrFromInt32(GWL_STYLE))
 	return r
 }
 
 func GetWindowExStyle(hwnd HWND) uintptr {
-	index := int32(GWL_EXSTYLE)
-	r, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), uintptr(index))
+	r, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), uintptrFromInt32(GWL_EXSTYLE))
 	return r
 }
 
@@ -242,17 +268,18 @@ func GetLastActivePopup(hwnd HWND) HWND {
 
 func GetWindowRect(hwnd HWND) (RECT, bool) {
 	var rect RECT
+	// #nosec G103 -- Win32 syscall boundary requires passing the RECT output pointer.
 	r, _, _ := procGetWindowRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&rect)))
 	return rect, r != 0
 }
 
 func ShowWindow(hwnd HWND, cmd int32) bool {
-	r, _, _ := procShowWindow.Call(uintptr(hwnd), uintptr(cmd))
+	r, _, _ := procShowWindow.Call(uintptr(hwnd), uintptrFromInt32(cmd))
 	return r != 0
 }
 
 func ShowWindowAsync(hwnd HWND, cmd int32) bool {
-	r, _, _ := procShowWindowAsync.Call(uintptr(hwnd), uintptr(cmd))
+	r, _, _ := procShowWindowAsync.Call(uintptr(hwnd), uintptrFromInt32(cmd))
 	return r != 0
 }
 

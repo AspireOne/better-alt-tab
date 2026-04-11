@@ -125,6 +125,7 @@ func (a *App) initWindows() error {
 	if _, err := win32.RegisterWindowClass(classOverlay, a.overlayProc, instance, 0); err != nil {
 		return fmt.Errorf("register overlay class: %w", err)
 	}
+	// #nosec G103 -- The window user data stores the owning App pointer for message dispatch.
 	a.controllerHwnd, err = win32.CreateWindow(0, 0, classController, "Quick App Switcher", instance, uintptr(unsafe.Pointer(a)))
 	if err != nil {
 		return fmt.Errorf("create controller window: %w", err)
@@ -135,6 +136,7 @@ func (a *App) initWindows() error {
 		classOverlay,
 		"Quick App Switcher Overlay",
 		instance,
+		// #nosec G103 -- The window user data stores the owning App pointer for message dispatch.
 		uintptr(unsafe.Pointer(a)),
 	)
 	if err != nil {

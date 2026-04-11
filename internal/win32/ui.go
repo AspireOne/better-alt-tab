@@ -13,7 +13,15 @@ func PositionWindowNoActivate(hwnd HWND, x, y, width, height int32, show bool) {
 	} else {
 		flags |= SWP_HIDEWINDOW
 	}
-	ignoreSyscall3(procSetWindowPos.Call(uintptr(hwnd), 0, uintptr(x), uintptr(y), uintptr(width), uintptr(height), flags))
+	ignoreSyscall3(procSetWindowPos.Call(
+		uintptr(hwnd),
+		0,
+		uintptrFromInt32(x),
+		uintptrFromInt32(y),
+		uintptrFromInt32(width),
+		uintptrFromInt32(height),
+		flags,
+	))
 }
 
 func SetLayeredWindowAlpha(hwnd HWND, alpha byte) error {
@@ -29,6 +37,7 @@ func InvalidateRect(hwnd HWND) {
 }
 
 func InvalidateRectArea(hwnd HWND, rect RECT) {
+	// #nosec G103 -- Win32 syscall boundary requires passing the RECT input pointer.
 	ignoreSyscall3(procInvalidateRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&rect)), 0))
 }
 
@@ -50,6 +59,7 @@ func GetWindowIcon(hwnd HWND) HICON {
 			0,
 			SMTO_ABORTIFHUNG|SMTO_ERRORONEXIT,
 			20,
+			// #nosec G103 -- Win32 syscall boundary requires passing the result pointer.
 			uintptr(unsafe.Pointer(&result)),
 		)
 		if r != 0 && result != 0 {
@@ -64,7 +74,7 @@ func GetClassIcon(hwnd HWND) HICON {
 		return 0
 	}
 	for _, index := range []int32{GCLP_HICON, GCLP_HICONSM} {
-		r, _, _ := procGetClassLongPtrW.Call(uintptr(hwnd), uintptr(index))
+		r, _, _ := procGetClassLongPtrW.Call(uintptr(hwnd), uintptrFromInt32(index))
 		if r != 0 {
 			return HICON(r)
 		}
@@ -78,8 +88,10 @@ func GetShellIcon(path string) (HICON, bool) {
 	}
 	var info SHFILEINFO
 	r, _, _ := procSHGetFileInfoW.Call(
+		// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 path pointer.
 		uintptr(unsafe.Pointer(utf16Ptr(path))),
 		0,
+		// #nosec G103 -- Win32 syscall boundary requires passing the output struct pointer.
 		uintptr(unsafe.Pointer(&info)),
 		unsafe.Sizeof(info),
 		SHGFI_ICON|SHGFI_LARGEICON,
@@ -122,8 +134,9 @@ func UnhookWinEvent(hook Handle) error {
 }
 
 func RegisterWindowMessage(name string) uint32 {
+	// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 message name.
 	r, _, _ := procRegisterWindowMessageW.Call(uintptr(unsafe.Pointer(utf16Ptr(name))))
-	return uint32(r)
+	return uint32FromRet(r)
 }
 
 func CreateSolidBrush(color uintptr) HBRUSH {
@@ -141,7 +154,7 @@ func DeleteDC(hdc HDC) {
 }
 
 func CreateCompatibleBitmap(hdc HDC, width, height int32) HBITMAP {
-	r, _, _ := procCreateCompatibleBitmap.Call(uintptr(hdc), uintptr(width), uintptr(height))
+	r, _, _ := procCreateCompatibleBitmap.Call(uintptr(hdc), uintptrFromInt32(width), uintptrFromInt32(height))
 	return HBITMAP(r)
 }
 
@@ -156,15 +169,18 @@ func DeleteObject(obj uintptr) {
 
 func BeginPaint(hwnd HWND) (PAINTSTRUCT, HDC) {
 	var ps PAINTSTRUCT
+	// #nosec G103 -- Win32 syscall boundary requires passing the PAINTSTRUCT output pointer.
 	r, _, _ := procBeginPaint.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&ps)))
 	return ps, HDC(r)
 }
 
 func EndPaint(hwnd HWND, ps *PAINTSTRUCT) {
+	// #nosec G103 -- Win32 syscall boundary requires passing the PAINTSTRUCT input pointer.
 	ignoreSyscall3(procEndPaint.Call(uintptr(hwnd), uintptr(unsafe.Pointer(ps))))
 }
 
 func FillRect(hdc HDC, rect *RECT, brush HBRUSH) {
+	// #nosec G103 -- Win32 syscall boundary requires passing the RECT input pointer.
 	ignoreSyscall3(procFillRect.Call(uintptr(hdc), uintptr(unsafe.Pointer(rect)), uintptr(brush)))
 }
 
@@ -179,8 +195,10 @@ func DrawLabel(hdc HDC, rect RECT, text string, color uintptr) {
 	flags := uintptr(DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX)
 	ignoreSyscall3(procDrawTextW.Call(
 		uintptr(hdc),
+		// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 text buffer.
 		uintptr(unsafe.Pointer(utf16Ptr(text))),
 		^uintptr(0),
+		// #nosec G103 -- Win32 syscall boundary requires passing the RECT input pointer.
 		uintptr(unsafe.Pointer(&rect)),
 		flags,
 	))
@@ -194,11 +212,11 @@ func defaultGUIFont() HFONT {
 func DrawIconInRect(hdc HDC, rect RECT, icon HICON) {
 	ignoreSyscall3(procDrawIconEx.Call(
 		uintptr(hdc),
-		uintptr(rect.Left),
-		uintptr(rect.Top),
+		uintptrFromInt32(rect.Left),
+		uintptrFromInt32(rect.Top),
 		uintptr(icon),
-		uintptr(rect.Right-rect.Left),
-		uintptr(rect.Bottom-rect.Top),
+		uintptrFromInt32(rect.Right-rect.Left),
+		uintptrFromInt32(rect.Bottom-rect.Top),
 		0,
 		0,
 		3,
@@ -206,19 +224,19 @@ func DrawIconInRect(hdc HDC, rect RECT, icon HICON) {
 }
 
 func SetStretchBltMode(hdc HDC, mode int32) {
-	ignoreSyscall3(procSetStretchBltMode.Call(uintptr(hdc), uintptr(mode)))
+	ignoreSyscall3(procSetStretchBltMode.Call(uintptr(hdc), uintptrFromInt32(mode)))
 }
 
 func BitBlt(dst HDC, x, y, width, height int32, src HDC, srcX, srcY int32, rop uint32) bool {
 	r, _, _ := procBitBlt.Call(
 		uintptr(dst),
-		uintptr(x),
-		uintptr(y),
-		uintptr(width),
-		uintptr(height),
+		uintptrFromInt32(x),
+		uintptrFromInt32(y),
+		uintptrFromInt32(width),
+		uintptrFromInt32(height),
 		uintptr(src),
-		uintptr(srcX),
-		uintptr(srcY),
+		uintptrFromInt32(srcX),
+		uintptrFromInt32(srcY),
 		uintptr(rop),
 	)
 	return r != 0
@@ -227,15 +245,15 @@ func BitBlt(dst HDC, x, y, width, height int32, src HDC, srcX, srcY int32, rop u
 func StretchBlt(dst HDC, x, y, width, height int32, src HDC, srcX, srcY, srcWidth, srcHeight int32, rop uint32) bool {
 	r, _, _ := procStretchBlt.Call(
 		uintptr(dst),
-		uintptr(x),
-		uintptr(y),
-		uintptr(width),
-		uintptr(height),
+		uintptrFromInt32(x),
+		uintptrFromInt32(y),
+		uintptrFromInt32(width),
+		uintptrFromInt32(height),
 		uintptr(src),
-		uintptr(srcX),
-		uintptr(srcY),
-		uintptr(srcWidth),
-		uintptr(srcHeight),
+		uintptrFromInt32(srcX),
+		uintptrFromInt32(srcY),
+		uintptrFromInt32(srcWidth),
+		uintptrFromInt32(srcHeight),
 		uintptr(rop),
 	)
 	return r != 0
@@ -280,6 +298,7 @@ func MonitorFromWindow(hwnd HWND) HMONITOR {
 
 func GetMonitorRect(monitor HMONITOR) RECT {
 	info := MONITORINFO{CbSize: uint32(unsafe.Sizeof(MONITORINFO{}))}
+	// #nosec G103 -- Win32 syscall boundary requires passing the MONITORINFO output pointer.
 	ignoreSyscall3(procGetMonitorInfoW.Call(uintptr(monitor), uintptr(unsafe.Pointer(&info))))
 	return info.RcWork
 }
@@ -291,6 +310,7 @@ func SendForegroundUnlockInput() error {
 	}
 	r, _, err := procSendInput.Call(
 		uintptr(len(inputs)),
+		// #nosec G103 -- Win32 syscall boundary requires passing the INPUT array pointer.
 		uintptr(unsafe.Pointer(&inputs[0])),
 		unsafe.Sizeof(inputs[0]),
 	)
@@ -302,6 +322,7 @@ func SendForegroundUnlockInput() error {
 
 func GetClassName(hwnd HWND) string {
 	buf := make([]uint16, 256)
+	// #nosec G103 -- Win32 syscall boundary requires passing the destination UTF-16 buffer.
 	r, _, _ := procGetClassNameW.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
 	if r == 0 {
 		return ""
@@ -311,6 +332,7 @@ func GetClassName(hwnd HWND) string {
 
 func IsWindowCloaked(hwnd HWND) bool {
 	var cloaked uint32
+	// #nosec G103 -- Win32 syscall boundary requires passing the cloaked-state output pointer.
 	r, _, _ := procDwmGetWindowAttribute.Call(uintptr(hwnd), DWMWA_CLOAKED, uintptr(unsafe.Pointer(&cloaked)), unsafe.Sizeof(cloaked))
 	return r == 0 && cloaked != 0
 }
@@ -330,6 +352,7 @@ func GetWindowProcessPath(hwnd HWND) string {
 		_ = CloseHandle(Handle(r))
 	}()
 	buf := make([]uint16, MAX_PATH)
+	// #nosec G103 -- Win32 syscall boundary requires passing the destination UTF-16 buffer.
 	n, _, _ := procGetModuleFileNameExW.Call(r, 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
 	if n == 0 {
 		return ""
@@ -347,11 +370,13 @@ func AddTrayIcon(hwnd HWND, messageID uint32, icon HICON, tooltip string) error 
 	data.HIcon = icon
 	tooltipUTF16, _ := syscall.UTF16FromString(tooltip)
 	copy(data.SzTip[:], tooltipUTF16)
+	// #nosec G103 -- Win32 syscall boundary requires passing the NOTIFYICONDATA input pointer.
 	r, _, err := procShellNotifyIconW.Call(NIM_ADD, uintptr(unsafe.Pointer(&data)))
 	if r == 0 {
 		return err
 	}
 	data.UTimeoutOrVersion = NOTIFYICON_VERSION_4
+	// #nosec G103 -- Win32 syscall boundary requires passing the NOTIFYICONDATA input pointer.
 	ignoreSyscall3(procShellNotifyIconW.Call(NIM_SETVERSION, uintptr(unsafe.Pointer(&data))))
 	return nil
 }
@@ -361,6 +386,7 @@ func DeleteTrayIcon(hwnd HWND) error {
 	data.CbSize = uint32(unsafe.Sizeof(data))
 	data.HWnd = hwnd
 	data.UID = 1
+	// #nosec G103 -- Win32 syscall boundary requires passing the NOTIFYICONDATA input pointer.
 	r, _, err := procShellNotifyIconW.Call(NIM_DELETE, uintptr(unsafe.Pointer(&data)))
 	if r == 0 {
 		return err
@@ -376,10 +402,12 @@ func ShowTrayMenu(hwnd HWND, commandID uint32) {
 	defer func() {
 		ignoreSyscall3(procDestroyMenu.Call(menu))
 	}()
+	// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
 	ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(commandID), uintptr(unsafe.Pointer(utf16Ptr("Close")))))
 	var pt POINT
+	// #nosec G103 -- Win32 syscall boundary requires passing the POINT output pointer.
 	ignoreSyscall3(procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt))))
-	cmd, _, _ := procTrackPopupMenu.Call(menu, TPM_RETURNCMD|TPM_NONOTIFY, uintptr(pt.X), uintptr(pt.Y), 0, uintptr(hwnd), 0)
+	cmd, _, _ := procTrackPopupMenu.Call(menu, TPM_RETURNCMD|TPM_NONOTIFY, uintptrFromInt32(pt.X), uintptrFromInt32(pt.Y), 0, uintptr(hwnd), 0)
 	if cmd != 0 {
 		PostMessage(hwnd, WM_COMMAND, cmd, 0)
 	}
@@ -387,7 +415,7 @@ func ShowTrayMenu(hwnd HWND, commandID uint32) {
 
 func CoInitialize() error {
 	r, _, err := procCoInitializeEx.Call(0, 2)
-	if int32(r) < 0 {
+	if hresultFailed(r) {
 		return err
 	}
 	return nil
@@ -398,7 +426,7 @@ func CoUninitialize() {
 }
 
 type VirtualDesktopManager struct {
-	ptr uintptr
+	ptr unsafe.Pointer
 }
 
 var (
@@ -407,15 +435,18 @@ var (
 )
 
 func NewVirtualDesktopManager() (*VirtualDesktopManager, error) {
-	var ptr uintptr
+	var ptr unsafe.Pointer
 	r, _, err := procCoCreateInstance.Call(
+		// #nosec G103 -- COM activation requires passing CLSID/IID/output pointers.
 		uintptr(unsafe.Pointer(&clsidVirtualDesktopManager)),
 		0,
 		CLSCTX_INPROC_SERVER,
+		// #nosec G103 -- COM activation requires passing CLSID/IID/output pointers.
 		uintptr(unsafe.Pointer(&iidVirtualDesktopManager)),
+		// #nosec G103 -- COM activation requires passing CLSID/IID/output pointers.
 		uintptr(unsafe.Pointer(&ptr)),
 	)
-	if int32(r) < 0 {
+	if hresultFailed(r) {
 		return nil, err
 	}
 	return &VirtualDesktopManager{ptr: ptr}, nil
@@ -431,27 +462,27 @@ type virtualDesktopManagerVtbl struct {
 }
 
 func (m *VirtualDesktopManager) vtbl() *virtualDesktopManagerVtbl {
-	if m == nil || m.ptr == 0 {
+	if m == nil || m.ptr == nil {
 		return nil
 	}
-	return *(**virtualDesktopManagerVtbl)(unsafe.Pointer(m.ptr))
+	return *(**virtualDesktopManagerVtbl)(m.ptr)
 }
 
 func (m *VirtualDesktopManager) Release() {
-	if m == nil || m.ptr == 0 {
+	if m == nil || m.ptr == nil {
 		return
 	}
 	vtbl := m.vtbl()
 	if vtbl == nil || vtbl.Release == 0 {
-		m.ptr = 0
+		m.ptr = nil
 		return
 	}
-	_, _, _ = syscall.SyscallN(vtbl.Release, m.ptr)
-	m.ptr = 0
+	_, _, _ = syscall.SyscallN(vtbl.Release, uintptr(m.ptr))
+	m.ptr = nil
 }
 
 func (m *VirtualDesktopManager) IsWindowOnCurrentDesktop(hwnd HWND) (bool, error) {
-	if m == nil || m.ptr == 0 {
+	if m == nil || m.ptr == nil {
 		return true, nil
 	}
 	vtbl := m.vtbl()
@@ -459,8 +490,9 @@ func (m *VirtualDesktopManager) IsWindowOnCurrentDesktop(hwnd HWND) (bool, error
 		return true, nil
 	}
 	var onCurrent int32
-	r, _, err := syscall.SyscallN(vtbl.IsCurrent, m.ptr, uintptr(hwnd), uintptr(unsafe.Pointer(&onCurrent)))
-	if int32(r) < 0 {
+	// #nosec G103 -- COM call requires passing the BOOL output pointer.
+	r, _, err := syscall.SyscallN(vtbl.IsCurrent, uintptr(m.ptr), uintptr(hwnd), uintptr(unsafe.Pointer(&onCurrent)))
+	if hresultFailed(r) {
 		return false, err
 	}
 	return onCurrent != 0, nil

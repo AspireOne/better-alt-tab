@@ -11,7 +11,8 @@ func TestVirtualDesktopManagerVtblReadsObjectVTablePointer(t *testing.T) {
 		vtbl *virtualDesktopManagerVtbl
 	}{vtbl: expected}
 
-	manager := &VirtualDesktopManager{ptr: uintptr(unsafe.Pointer(&object))}
+	// #nosec G103 -- Test fixture intentionally models the COM object memory layout.
+	manager := &VirtualDesktopManager{ptr: unsafe.Pointer(&object)}
 	if got := manager.vtbl(); got != expected {
 		t.Fatal("expected vtable pointer to be read from the COM object")
 	}
