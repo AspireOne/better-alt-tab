@@ -4,7 +4,6 @@ Repo-wide guidance for autonomous coding agents.
 
 ## General
 
-- Read `spec.md` before making architectural or behavioral changes.
 - Keep changes scoped. Do not widen scope without a concrete reason.
 - Prefer the smallest correct change over a broad refactor.
 - Preserve the existing architecture unless there is a clear technical reason to improve it.
@@ -18,6 +17,7 @@ Repo-wide guidance for autonomous coding agents.
 - Prefer concrete types internally. Use interfaces mainly at system boundaries where they materially help testing or substitution.
 - Keep exported surface area small.
 - Add comments only for non-obvious intent, invariants, or Win32 quirks.
+- avoid unnecessary abstractions
 
 ## Structure
 
@@ -54,7 +54,7 @@ If a change risks making the first visible frame slower, reconsider it.
 - Do not silently swallow errors without a deliberate reason.
 - Do not assume important Win32 operations succeeded; verify critical postconditions when needed.
 
-## Testing
+## Adding Testing
 
 - Use Go’s standard `testing` package by default.
 - Test pure logic aggressively.
@@ -63,7 +63,6 @@ If a change risks making the first visible frame slower, reconsider it.
 - Mock or wrap Win32 boundaries only when it materially improves testing of real logic.
 - Do not write brittle tests for OS behavior that cannot be made deterministic.
 - If a change depends on real Windows behavior, note the need for manual verification explicitly.
-- Verify: run `lefthook run pre-commit` and build the app after implementing a feature to verify linting and tests.
 
 ## When Tests Are Not Necessary
 
@@ -80,18 +79,15 @@ Before coding:
 - identify what is pure logic vs OS-bound logic
 - identify whether the change touches hot-path behavior
 
-While coding:
-
-- keep concerns separated
-- avoid unnecessary abstractions
-- update tests when logic changes
+## Verification
 
 Before finishing:
 
-- verify the change still matches `spec.md`
 - check affected edge cases
 - call out any untested Windows-specific behavior
 - Use conventional commits for commiting. Include title and body too.
+
+- Verify: run `lefthook run pre-commit` (which runs tests and linting) and build the app after implementing a feature. Address any surfaced issues.
 
 ## If In Doubt
 
