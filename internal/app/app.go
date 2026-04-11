@@ -655,7 +655,7 @@ func (a *App) releaseAltModifier() error {
 	if a.releaseModifiers != nil {
 		return a.releaseModifiers()
 	}
-	return win32.SendForegroundUnlockInput()
+	return win32.SendAltKeyUpInput()
 }
 
 func (a *App) validSwitchTarget(target windows.WindowID) bool {

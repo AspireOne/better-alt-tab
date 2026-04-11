@@ -321,6 +321,20 @@ func SendForegroundUnlockInput() error {
 	return nil
 }
 
+func SendAltKeyUpInput() error {
+	input := NewKeyboardInput(VK_MENU, 0, KEYEVENTF_KEYUP)
+	r, _, err := procSendInput.Call(
+		1,
+		// #nosec G103 -- Win32 syscall boundary requires passing the INPUT pointer.
+		uintptr(unsafe.Pointer(&input)),
+		unsafe.Sizeof(input),
+	)
+	if r == 0 {
+		return err
+	}
+	return nil
+}
+
 func GetClassName(hwnd HWND) string {
 	buf := make([]uint16, 256)
 	// #nosec G103 -- Win32 syscall boundary requires passing the destination UTF-16 buffer.
