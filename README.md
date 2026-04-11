@@ -1,46 +1,39 @@
 # Quick App Switcher
 
-A fast, lightweight Windows application switcher written in Go. Quick App Switcher provides a Most Recently Used (MRU) based overlay to quickly cycle through open windows, serving as an efficient alternative to the built-in Alt+Tab switcher.
+Quick App Switcher is a lightweight Windows `Alt+Tab` replacement written in Go. It keeps its own MRU window order, shows a fast native overlay, and stays out of the way in the system tray while it runs in the background.
 
-## Features
+## What It Does
 
-- **MRU-Based Switching:** Intelligently tracks window focus and orders your switch targets based on your most recently used applications.
-- **Native Performance:** Built using pure Go and native Windows (Win32) APIs without heavy UI frameworks, ensuring minimal memory footprint and instant responsiveness.
-- **System Tray Integration:** Runs quietly in the background with a system tray icon for easy management and exit.
-- **Custom Overlay:** Displays a lightweight, non-intrusive on-screen overlay showing the available applications during a switch session.
-- **Single Instance:** Prevents multiple instances from running concurrently.
+- Replaces the native `Alt+Tab` switching flow with an MRU-driven window switcher.
+- Starts a session on the first `Tab` press while `Alt` is held.
+- Preselects the previous window first, so repeated `Alt+Tab` presses quickly bounce between your two most recent windows.
+- Shows a centered overlay on the active monitor with app icons, window previews, and labels.
+- Activates the selected window on `Alt` release.
+- Tracks foreground-window changes to keep MRU ordering current outside switching sessions.
+- Runs as a single instance and exposes control actions through a tray icon.
 
-## Requirements
+## Current Features
 
-- **Operating System:** Windows
-- **Go Version:** Go 1.26 or higher (for building from source)
+- Native Win32 implementation in pure Go.
+- Fast overlay window created up front at startup.
+- App icons cached in memory for faster repainting.
+- Optional live window thumbnails in the switcher overlay.
+- Native settings window.
+- TOML config file stored in your user profile.
+- Tray actions for `Settings`, `Open Config File`, and `Close`.
+- Optional launch on Windows startup via the current user's `Run` registry key.
+- Current-virtual-desktop filtering when the Windows virtual desktop API is available.
+- Explorer/taskbar restart handling for the tray icon.
 
-## Building from Source
+## Settings And Config
 
-To build the application, ensure you have Go installed, then run the following command from the root of the repository:
+Quick App Switcher stores its config at:
 
-```bash
-go build -o quick-app-switcher.exe ./cmd/quick-app-switcher
-```
+`%USERPROFILE%\.config\quick-app-switcher\config.toml`
 
-Alternatively, you can use the provided PowerShell build script if available:
+If the file does not exist yet, the app creates it with defaults on first launch.
 
-```powershell
-.\build-run.ps1
-```
-
-## Usage
-
-1. Run the compiled `quick-app-switcher.exe`.
-2. The application will start in the background, and a new icon will appear in your Windows System Tray.
-3. Use the keyboard shortcut (typically `Alt` + `Tab`) to invoke the overlay and cycle through your open windows. By default, the selected window is previewed immediately; set `instant_switch_preview = false` if you want switching to wait until you release `Alt`.
-4. To exit, right-click the Quick App Switcher icon in the system tray and select **Exit**.
-
-## Configuration
-
-The app stores its config at `%USERPROFILE%\\.config\\quick-app-switcher\\config.toml`.
-
-Example:
+Current config options:
 
 ```toml
 show_thumbnails = true
@@ -48,17 +41,68 @@ launch_on_startup = false
 instant_switch_preview = true
 ```
 
-Set `launch_on_startup = true` to register the app under the current user's Windows `Run` key. The setting is reconciled on launch, so the stored startup command follows the current executable path.
-Set `instant_switch_preview = false` to keep focus on the current window while cycling and only activate the selected target on `Alt` release.
+What they do:
 
-## Architecture
+- `show_thumbnails`: enables live window thumbnails in the overlay. If disabled, the app still shows icons and labels.
+- `launch_on_startup`: adds or removes the app from `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+- `instant_switch_preview`: when `true`, the selected window is activated as you cycle. When `false`, the current window keeps focus until you release `Alt`.
 
-The application is structured into several internal packages for clear separation of concerns:
+Settings changed through the built-in settings window are applied immediately and saved back to `config.toml`; no restart is required.
 
-- `cmd/quick-app-switcher`: The main entry point.
-- `internal/app`: Core application logic, window message loop, and state management.
-- `internal/events`: Foreground window watchers and event tracking.
-- `internal/input`: Global keyboard hooks (e.g., intercepting Tab/Alt).
-- `internal/mru`: Most Recently Used list logic.
-- `internal/ui`: Rendering of the system tray and on-screen overlay.
-- `internal/win32` & `internal/windows`: Low-level Win32 API bindings and window management.
+The tray menu also includes `Open Config File`, which opens the config path directly in Windows so you can edit it manually.
+
+## Usage
+
+1. Start `quick-app-switcher.exe`.
+2. The app stays in the background and adds a tray icon.
+3. Hold `Alt` and press `Tab` to start switching.
+4. Keep pressing `Tab` to move forward through the MRU list.
+5. Release `Alt` to commit the current selection.
+6. Press `Esc` during a switching session to cancel it.
+
+Tray behavior:
+
+- Left-click the tray icon to open Settings.
+- Right-click the tray icon to open the tray menu.
+
+## Limitations
+
+- Windows only.
+- The switcher currently cycles forward only; reverse cycling with `Shift+Alt+Tab` is not implemented.
+- The candidate list is limited to windows on the current virtual desktop when that information is available.
+- The overlay is keyboard-driven only.
+
+## Requirements
+
+- Windows
+- Go 1.26 or newer if you are building from source
+
+## Build
+
+Build the executable from the repo root:
+
+```powershell
+go build -o quick-app-switcher.exe ./cmd/quick-app-switcher
+```
+
+For a build-and-run loop during development, use:
+
+```powershell
+.\build-run.ps1
+```
+
+That script builds the app into `.gotmp\quick-app-switcher.exe` and launches it.
+
+## Project Layout
+
+- `cmd/quick-app-switcher`: program entry point
+- `internal/app`: application wiring, message loop, session flow, tray commands, and settings handling
+- `internal/config`: config loading, validation, normalization, and saving
+- `internal/events`: foreground-window event watcher
+- `internal/input`: low-level keyboard hook for `Alt`, `Tab`, and cancel handling
+- `internal/mru`: MRU ordering logic
+- `internal/session`: switch-session state machine
+- `internal/startup`: Windows startup registration
+- `internal/ui`: overlay, layout, tray, and settings window UI
+- `internal/win32`: Win32 bindings and helpers
+- `internal/windows`: window discovery, filtering, activation, desktop checks, icon loading, and thumbnails
