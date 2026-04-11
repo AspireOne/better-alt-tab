@@ -146,6 +146,7 @@ type INPUT struct {
 func NewKeyboardInput(vk uint16, scan uint16, flags uint32) INPUT {
 	var input INPUT
 	input.Type = INPUT_KEYBOARD
+	// #nosec G103 -- INPUT stores its active payload in an inline byte buffer.
 	kb := (*KEYBDINPUT)(unsafe.Pointer(&input.Anonymous[0]))
 	kb.WVk = vk
 	kb.WScan = scan
@@ -189,6 +190,7 @@ const (
 
 	WH_KEYBOARD_LL = 13
 	LLKHF_UP       = 0x0080
+	LLKHF_INJECTED = 0x0010
 
 	VK_TAB    = 0x09
 	VK_ESCAPE = 0x1B

@@ -62,10 +62,11 @@ type App struct {
 	activateTarget      func(windows.WindowID) error
 	isValidSwitchTarget func(windows.WindowID) bool
 
-	windowProc      uintptr
-	overlayProc     uintptr
-	shuttingDown    atomic.Bool
-	thumbnailWarmWG sync.WaitGroup
+	windowProc       uintptr
+	overlayProc      uintptr
+	shuttingDown     atomic.Bool
+	thumbnailWarmWG  sync.WaitGroup
+	releaseModifiers func() error
 }
 
 func Run(logger *log.Logger) error {
@@ -448,6 +449,9 @@ func (a *App) onAltReleased() {
 	if err := a.finalizeSelection(selected); err != nil {
 		a.logger.Printf("commit failed: %v", err)
 	}
+	if err := a.releaseAltModifier(); err != nil {
+		a.logger.Printf("release Alt modifier failed: %v", err)
+	}
 	a.session.Reset()
 }
 
@@ -519,6 +523,13 @@ func (a *App) activate(target windows.WindowID) error {
 		return a.activateTarget(target)
 	}
 	return windows.Activate(target)
+}
+
+func (a *App) releaseAltModifier() error {
+	if a.releaseModifiers != nil {
+		return a.releaseModifiers()
+	}
+	return win32.SendForegroundUnlockInput()
 }
 
 func (a *App) validSwitchTarget(target windows.WindowID) bool {

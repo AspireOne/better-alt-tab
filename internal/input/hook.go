@@ -127,6 +127,9 @@ func (h *Hook) proc(code int32, wParam uintptr, lParam uintptr) uintptr {
 }
 
 func (h *Hook) handleKey(vkCode, flags uint32) keyDecision {
+	if flags&win32.LLKHF_INJECTED != 0 {
+		return keyDecision{}
+	}
 	keyUp := flags&win32.LLKHF_UP != 0
 	switch vkCode {
 	case win32.VK_LMENU, win32.VK_RMENU, win32.VK_MENU:
@@ -137,9 +140,7 @@ func (h *Hook) handleKey(vkCode, flags uint32) keyDecision {
 		h.tabDown = false
 		if h.ownedSession {
 			h.ownedSession = false
-			// Keep the real Alt-up visible to Windows so the modifier state
-			// is balanced after our handled Alt+Tab session ends.
-			return keyDecision{postAltUp: true}
+			return keyDecision{suppress: true, postAltUp: true}
 		}
 	case win32.VK_TAB:
 		if !h.altDown {

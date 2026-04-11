@@ -15,8 +15,8 @@ func TestHandleKeyAltReleaseEndsOwnedSessionWithoutSuppressingRelease(t *testing
 
 	decision := h.handleKey(win32.VK_MENU, win32.LLKHF_UP)
 
-	if decision.suppress {
-		t.Fatal("expected Alt release to reach Windows")
+	if !decision.suppress {
+		t.Fatal("expected Alt release to be suppressed for owned session")
 	}
 	if !decision.postAltUp {
 		t.Fatal("expected Alt release to notify the app")
@@ -48,5 +48,28 @@ func TestHandleKeyTabDownWhileAltHeldStartsOwnedSessionAndSuppressesTab(t *testi
 	}
 	if !h.ownedSession {
 		t.Fatal("expected session ownership to start")
+	}
+}
+
+func TestHandleKeyInjectedAltEventsAreIgnored(t *testing.T) {
+	h := &Hook{
+		altDown:      true,
+		tabDown:      true,
+		ownedSession: true,
+	}
+
+	decision := h.handleKey(win32.VK_MENU, win32.LLKHF_INJECTED|win32.LLKHF_UP)
+
+	if decision != (keyDecision{}) {
+		t.Fatalf("got decision %+v want zero decision", decision)
+	}
+	if !h.altDown {
+		t.Fatal("expected injected event to leave Alt state unchanged")
+	}
+	if !h.tabDown {
+		t.Fatal("expected injected event to leave Tab state unchanged")
+	}
+	if !h.ownedSession {
+		t.Fatal("expected injected event to leave ownership unchanged")
 	}
 }

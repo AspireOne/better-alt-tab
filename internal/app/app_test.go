@@ -168,6 +168,31 @@ func TestCancelSessionRestoresStartingWindowWhenValid(t *testing.T) {
 	}
 }
 
+func TestOnAltReleasedFinalizesSelectionAndReleasesModifiers(t *testing.T) {
+	a := newTestApp()
+	a.session = session.SwitchSession{
+		State:         session.StateCycling,
+		Candidates:    []windows.WindowID{10, 20},
+		SelectedIndex: 1,
+	}
+	a.isValidSwitchTarget = func(target windows.WindowID) bool { return true }
+
+	releaseCalls := 0
+	a.releaseModifiers = func() error {
+		releaseCalls++
+		return nil
+	}
+
+	a.onAltReleased()
+
+	if releaseCalls != 1 {
+		t.Fatalf("got release calls %d want 1", releaseCalls)
+	}
+	if a.session.State != session.StateIdle {
+		t.Fatalf("got state %v want idle", a.session.State)
+	}
+}
+
 func newTestApp() *App {
 	return &App{
 		logger:  log.New(io.Discard, "", 0),
