@@ -44,6 +44,7 @@ var (
 	procGetLastActivePopup         = user32.NewProc("GetLastActivePopup")
 	procGetWindowRect              = user32.NewProc("GetWindowRect")
 	procShowWindow                 = user32.NewProc("ShowWindow")
+	procShowWindowAsync            = user32.NewProc("ShowWindowAsync")
 	procSetForegroundWindow        = user32.NewProc("SetForegroundWindow")
 	procGetForegroundWindow        = user32.NewProc("GetForegroundWindow")
 	procGetDC                      = user32.NewProc("GetDC")

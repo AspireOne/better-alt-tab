@@ -295,6 +295,7 @@ func (a *App) onForegroundChanged(hwnd uintptr) {
 		return
 	}
 	if a.inventory.IsValidSwitchTarget(id) {
+		a.rememberSnapshotTarget(id)
 		a.mru.MoveToFront(id)
 	}
 }
@@ -305,9 +306,12 @@ func (a *App) onTabPressed() {
 		a.overlay.UpdateSelection(a.session.SelectedIndex)
 		return
 	}
-	if err := a.refreshSnapshot(); err != nil {
-		a.logger.Printf("refresh snapshot: %v", err)
-		return
+	a.pruneCachedSnapshot()
+	if len(a.lastSnapshot.Order) < 2 {
+		if err := a.refreshSnapshot(); err != nil {
+			a.logger.Printf("refresh snapshot: %v", err)
+			return
+		}
 	}
 	candidates := a.mru.BuildCandidates(a.lastSnapshot)
 	startedFrom := windows.WindowID(win32.GetForegroundWindow())
@@ -317,6 +321,40 @@ func (a *App) onTabPressed() {
 	items, metrics := a.renderOverlay()
 	a.warmSessionIconsAsync(items)
 	a.warmSessionThumbnailsAsync(items, metrics)
+}
+
+func (a *App) pruneCachedSnapshot() {
+	if len(a.lastSnapshot.Order) == 0 || len(a.lastSnapshot.ByID) == 0 {
+		a.lastSnapshot.Order = a.lastSnapshot.Order[:0]
+		return
+	}
+	kept := a.lastSnapshot.Order[:0]
+	for _, id := range a.lastSnapshot.Order {
+		if _, ok := a.lastSnapshot.ByID[id]; !ok || !a.inventory.IsValidSwitchTarget(id) {
+			delete(a.lastSnapshot.ByID, id)
+			continue
+		}
+		kept = append(kept, id)
+	}
+	a.lastSnapshot.Order = kept
+}
+
+func (a *App) rememberSnapshotTarget(id windows.WindowID) {
+	if id == 0 {
+		return
+	}
+	if a.lastSnapshot.ByID == nil {
+		a.lastSnapshot.ByID = make(map[windows.WindowID]windows.WindowInfo)
+	}
+	if _, ok := a.lastSnapshot.ByID[id]; !ok {
+		a.lastSnapshot.Order = append(a.lastSnapshot.Order, id)
+	}
+	info := a.lastSnapshot.ByID[id]
+	if info.ID == 0 {
+		info.ID = id
+	}
+	info.IsAppWindow = true
+	a.lastSnapshot.ByID[id] = info
 }
 
 func (a *App) renderOverlay() ([]windows.WindowInfo, ui.OverlayMetrics) {
@@ -400,27 +438,22 @@ func (a *App) onAltReleased() {
 }
 
 func (a *App) commitSelection(selected windows.WindowID) error {
-	if a.inventory.IsValidSwitchTarget(selected) {
-		if err := windows.Activate(selected); err == nil {
-			a.mru.MoveToFront(selected)
-			return nil
-		}
-		if err := windows.Activate(selected); err == nil {
-			a.mru.MoveToFront(selected)
-			return nil
-		}
-		return fmt.Errorf("activation failed for selected target %v", selected)
+	selectedErr := windows.Activate(selected)
+	if selectedErr == nil {
+		a.mru.MoveToFront(selected)
+		return nil
 	}
 
 	if candidate, ok := a.nextValidCandidateAfterSelected(); ok {
-		if err := windows.Activate(candidate); err == nil {
+		replacementErr := windows.Activate(candidate)
+		if replacementErr == nil {
 			a.mru.MoveToFront(candidate)
 			return nil
 		}
-		return fmt.Errorf("activation failed for replacement target %v", candidate)
+		return fmt.Errorf("activation failed for replacement target %v after selected target %v failed: replacement: %w; selected: %v", candidate, selected, replacementErr, selectedErr)
 	}
 
-	return fmt.Errorf("no valid switch target")
+	return fmt.Errorf("activation failed for selected target %v and no valid replacement target was found: %w", selected, selectedErr)
 }
 
 func (a *App) nextValidCandidateAfterSelected() (windows.WindowID, bool) {

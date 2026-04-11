@@ -16,16 +16,18 @@ func Activate(target WindowID) error {
 		return fmt.Errorf("window %v no longer exists", hwnd)
 	}
 	if win32.IsIconic(hwnd) {
-		win32.ShowWindow(hwnd, win32.SW_RESTORE)
+		if !win32.ShowWindowAsync(hwnd, win32.SW_RESTORE) {
+			win32.ShowWindow(hwnd, win32.SW_RESTORE)
+		}
+	}
+	if win32.SetForegroundWindow(hwnd) {
+		return nil
 	}
 	if err := win32.SendForegroundUnlockInput(); err != nil {
-		return fmt.Errorf("send unlock input: %w", err)
+		return fmt.Errorf("send unlock input after direct foreground failed: %w", err)
 	}
 	if !win32.SetForegroundWindow(hwnd) {
-		return fmt.Errorf("set foreground failed")
-	}
-	if current := win32.GetForegroundWindow(); current != hwnd {
-		return fmt.Errorf("foreground verification failed: got %v want %v", current, hwnd)
+		return fmt.Errorf("set foreground failed after unlock input")
 	}
 	return nil
 }

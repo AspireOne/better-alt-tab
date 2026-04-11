@@ -251,6 +251,11 @@ func ShowWindow(hwnd HWND, cmd int32) bool {
 	return r != 0
 }
 
+func ShowWindowAsync(hwnd HWND, cmd int32) bool {
+	r, _, _ := procShowWindowAsync.Call(uintptr(hwnd), uintptr(cmd))
+	return r != 0
+}
+
 func SetForegroundWindow(hwnd HWND) bool {
 	r, _, _ := procSetForegroundWindow.Call(uintptr(hwnd))
 	return r != 0
