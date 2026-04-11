@@ -25,5 +25,5 @@ func (t *Tray) Delete(hwnd win32.HWND) error {
 }
 
 func (t *Tray) ShowMenu(hwnd win32.HWND) {
-	win32.ShowTrayMenu(hwnd, CommandOpenConfig, CommandExit)
+	win32.ShowTrayMenu(hwnd, CommandOpenSettings, CommandOpenConfigFile, CommandExit)
 }

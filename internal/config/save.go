@@ -9,6 +9,14 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+func Save(cfg Config) error {
+	path, err := Path()
+	if err != nil {
+		return err
+	}
+	return savePath(path, cfg)
+}
+
 func savePath(path string, cfg Config) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {

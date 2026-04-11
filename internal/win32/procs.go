@@ -46,6 +46,8 @@ var (
 	procShowWindow                 = user32.NewProc("ShowWindow")
 	procShowWindowAsync            = user32.NewProc("ShowWindowAsync")
 	procSetForegroundWindow        = user32.NewProc("SetForegroundWindow")
+	procSendMessageW               = user32.NewProc("SendMessageW")
+	procMessageBoxW                = user32.NewProc("MessageBoxW")
 	procGetForegroundWindow        = user32.NewProc("GetForegroundWindow")
 	procGetDC                      = user32.NewProc("GetDC")
 	procGetWindowDC                = user32.NewProc("GetWindowDC")

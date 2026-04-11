@@ -15,17 +15,18 @@ import (
 	"quick_app_switcher/internal/events"
 	"quick_app_switcher/internal/input"
 	"quick_app_switcher/internal/mru"
+	coderuntime "quick_app_switcher/internal/runtime"
 	"quick_app_switcher/internal/session"
+	"quick_app_switcher/internal/startup"
 	"quick_app_switcher/internal/ui"
 	"quick_app_switcher/internal/win32"
 	"quick_app_switcher/internal/windows"
-
-	coderuntime "quick_app_switcher/internal/runtime"
 )
 
 const (
 	classController = "QuickAppSwitcher.Controller"
 	classOverlay    = "QuickAppSwitcher.Overlay"
+	classSettings   = "QuickAppSwitcher.Settings"
 
 	msgHookTabPressed    = win32.WM_APP + 1
 	msgHookAltReleased   = win32.WM_APP + 2
@@ -45,6 +46,7 @@ const (
 type App struct {
 	logger         *log.Logger
 	cfg            config.Config
+	instance       win32.HINSTANCE
 	controllerHwnd win32.HWND
 	overlayHwnd    win32.HWND
 	taskbarMsg     uint32
@@ -53,6 +55,7 @@ type App struct {
 	watcher      *events.ForegroundWatcher
 	tray         *ui.Tray
 	overlay      *ui.Overlay
+	settings     *ui.SettingsWindow
 	desktop      *windows.DesktopManager
 	inventory    *windows.Inventory
 	icons        *windows.IconCache
@@ -66,10 +69,15 @@ type App struct {
 
 	windowProc       uintptr
 	overlayProc      uintptr
+	settingsProc     uintptr
 	shuttingDown     atomic.Bool
 	thumbnailWarmWG  sync.WaitGroup
 	releaseModifiers func() error
-	openConfig       func() error
+	openSettings     func() error
+	openConfigFile   func() error
+	loadConfig       func() (config.Config, error)
+	saveConfig       func(config.Config) error
+	syncStartup      func(bool) error
 }
 
 func Run(logger *log.Logger, cfg config.Config) error {
@@ -96,8 +104,13 @@ func Run(logger *log.Logger, cfg config.Config) error {
 		icons:      windows.NewIconCache(),
 		thumbnails: windows.NewThumbnailCache(),
 		mru:        mru.New(),
+		settings:   ui.NewSettingsWindow(),
 	}
-	a.openConfig = a.openConfigFile
+	a.openSettings = a.openSettingsWindow
+	a.openConfigFile = a.openConfigPath
+	a.loadConfig = config.Load
+	a.saveConfig = config.Save
+	a.syncStartup = startup.Sync
 	if err := a.initWindows(); err != nil {
 		a.shutdown()
 		return err
@@ -121,14 +134,19 @@ func (a *App) initWindows() error {
 	if err != nil {
 		return fmt.Errorf("get module handle: %w", err)
 	}
+	a.instance = instance
 
 	a.windowProc = syscall.NewCallback(a.controllerWndProc)
 	a.overlayProc = syscall.NewCallback(a.overlayWndProc)
+	a.settingsProc = syscall.NewCallback(a.settingsWndProc)
 	if _, err := win32.RegisterWindowClass(classController, a.windowProc, instance, win32.LoadDefaultApplicationIcon()); err != nil {
 		return fmt.Errorf("register controller class: %w", err)
 	}
 	if _, err := win32.RegisterWindowClass(classOverlay, a.overlayProc, instance, 0); err != nil {
 		return fmt.Errorf("register overlay class: %w", err)
+	}
+	if _, err := win32.RegisterWindowClass(classSettings, a.settingsProc, instance, win32.LoadDefaultApplicationIcon()); err != nil {
+		return fmt.Errorf("register settings class: %w", err)
 	}
 	// #nosec G103 -- The window user data stores the owning App pointer for message dispatch.
 	a.controllerHwnd, err = win32.CreateWindow(0, 0, classController, "Quick App Switcher", instance, uintptr(unsafe.Pointer(a)))
@@ -217,6 +235,9 @@ func (a *App) shutdown() {
 		win32.DestroyWindow(a.overlayHwnd)
 		a.overlayHwnd = 0
 	}
+	if a.settings != nil {
+		a.settings.Destroy()
+	}
 	if a.controllerHwnd != 0 {
 		win32.DestroyWindow(a.controllerHwnd)
 		a.controllerHwnd = 0
@@ -282,8 +303,13 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 		}
 		if msg == msgTray {
 			switch trayNotificationCode(lParam) {
-			case wmContextMenu, win32.WM_RBUTTONUP, ninSelect, ninKeySelect:
+			case wmContextMenu, win32.WM_RBUTTONUP:
 				a.tray.ShowMenu(hwnd)
+			case win32.WM_LBUTTONUP, ninSelect, ninKeySelect:
+				if err := a.openSettings(); err != nil {
+					a.logger.Printf("open settings: %v", err)
+					a.reportActionError("Open Settings", err)
+				}
 			}
 			return 0
 		}
@@ -293,9 +319,16 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 
 func (a *App) handleCommand(command uint32) bool {
 	switch command {
-	case ui.CommandOpenConfig:
-		if err := a.openConfig(); err != nil {
-			a.logger.Printf("open config: %v", err)
+	case ui.CommandOpenSettings:
+		if err := a.openSettings(); err != nil {
+			a.logger.Printf("open settings: %v", err)
+			a.reportActionError("Open Settings", err)
+		}
+		return true
+	case ui.CommandOpenConfigFile:
+		if err := a.openConfigFile(); err != nil {
+			a.logger.Printf("open config file: %v", err)
+			a.reportActionError("Open Config File", err)
 		}
 		return true
 	case ui.CommandExit:
@@ -306,7 +339,7 @@ func (a *App) handleCommand(command uint32) bool {
 	}
 }
 
-func (a *App) openConfigFile() error {
+func (a *App) openConfigPath() error {
 	path, err := config.Path()
 	if err != nil {
 		return err
@@ -321,6 +354,26 @@ func (a *App) overlayWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uintptr
 			thumbnails = nil
 		}
 		a.overlay.Paint(hwnd, a.icons, thumbnails)
+		return 0
+	}
+	return win32.DefWindowProc(hwnd, msg, wParam, lParam)
+}
+
+func (a *App) settingsWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uintptr) uintptr {
+	switch msg {
+	case win32.WM_COMMAND:
+		if a.settings != nil {
+			handled, err := a.settings.HandleCommand(uint32(wParam&0xffff), a.saveSettings, a.hideSettings)
+			if handled {
+				if err != nil {
+					a.logger.Printf("save settings: %v", err)
+					a.reportActionError("Save Settings", err)
+				}
+				return 0
+			}
+		}
+	case win32.WM_CLOSE:
+		a.hideSettings()
 		return 0
 	}
 	return win32.DefWindowProc(hwnd, msg, wParam, lParam)
@@ -618,4 +671,91 @@ func (a *App) requestShutdown() {
 		return
 	}
 	win32.PostMessage(a.controllerHwnd, msgShutdownRequested, 0, 0)
+}
+
+func (a *App) openSettingsWindow() error {
+	if err := a.ensureSettingsWindow(); err != nil {
+		return err
+	}
+	cfg, err := a.loadCurrentConfig()
+	if err != nil {
+		return err
+	}
+	a.settings.Show(cfg)
+	return nil
+}
+
+func (a *App) ensureSettingsWindow() error {
+	if a.settings == nil {
+		a.settings = ui.NewSettingsWindow()
+	}
+	if a.settings.Hwnd() != 0 && win32.IsWindow(a.settings.Hwnd()) {
+		return nil
+	}
+	if err := a.settings.Create(a.instance, classSettings, win32.GetForegroundWindow()); err != nil {
+		return fmt.Errorf("create settings window: %w", err)
+	}
+	return nil
+}
+
+func (a *App) loadCurrentConfig() (config.Config, error) {
+	if a.loadConfig == nil {
+		return a.cfg, nil
+	}
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return config.Config{}, err
+	}
+	a.cfg = cfg
+	return cfg, nil
+}
+
+func (a *App) saveSettings() error {
+	if a.settings == nil {
+		return fmt.Errorf("settings window is not initialized")
+	}
+	cfg := a.settings.Config()
+	if err := a.saveSettingsConfig(cfg); err != nil {
+		return err
+	}
+	a.settings.Hide()
+	if a.session.State == session.StateCycling {
+		a.overlay.Refresh()
+	}
+	return nil
+}
+
+func (a *App) hideSettings() {
+	if a.settings != nil {
+		a.settings.Hide()
+	}
+}
+
+func (a *App) saveSettingsConfig(cfg config.Config) error {
+	if a.saveConfig != nil {
+		if err := a.saveConfig(cfg); err != nil {
+			return err
+		}
+	}
+	a.cfg = cfg
+	if a.syncStartup != nil {
+		if err := a.syncStartup(cfg.LaunchOnStartup); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *App) reportActionError(title string, err error) {
+	if err == nil {
+		return
+	}
+	win32.ShowErrorMessage(a.settingsWindowHandle(), title, err.Error())
+}
+
+func (a *App) settingsWindowHandle() win32.HWND {
+	if a.settings != nil && a.settings.Hwnd() != 0 {
+		return a.settings.Hwnd()
+	}
+	return a.controllerHwnd
 }

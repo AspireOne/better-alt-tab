@@ -395,7 +395,7 @@ func DeleteTrayIcon(hwnd HWND) error {
 	return nil
 }
 
-func ShowTrayMenu(hwnd HWND, openConfigCommandID, exitCommandID uint32) {
+func ShowTrayMenu(hwnd HWND, settingsCommandID, openConfigCommandID, exitCommandID uint32) {
 	menu, _, _ := procCreatePopupMenu.Call()
 	if menu == 0 {
 		return
@@ -403,6 +403,10 @@ func ShowTrayMenu(hwnd HWND, openConfigCommandID, exitCommandID uint32) {
 	defer func() {
 		ignoreSyscall3(procDestroyMenu.Call(menu))
 	}()
+	if settingsCommandID != 0 {
+		// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
+		ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(settingsCommandID), uintptr(unsafe.Pointer(utf16Ptr("Settings")))))
+	}
 	// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
 	ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(openConfigCommandID), uintptr(unsafe.Pointer(utf16Ptr("Open Config File")))))
 	// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
@@ -431,6 +435,35 @@ func OpenPath(path string) error {
 		return fmt.Errorf("ShellExecuteW failed for %q: code %d", path, r)
 	}
 	return nil
+}
+
+func SetCheckboxChecked(hwnd HWND, checked bool) {
+	if hwnd == 0 {
+		return
+	}
+	value := uintptr(0)
+	if checked {
+		value = BST_CHECKED
+	}
+	SendMessage(hwnd, BM_SETCHECK, value, 0)
+}
+
+func CheckboxChecked(hwnd HWND) bool {
+	if hwnd == 0 {
+		return false
+	}
+	return SendMessage(hwnd, BM_GETCHECK, 0, 0) == BST_CHECKED
+}
+
+func ShowErrorMessage(hwnd HWND, title, text string) {
+	ignoreSyscall3(procMessageBoxW.Call(
+		uintptr(hwnd),
+		// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 message text pointer.
+		uintptr(unsafe.Pointer(utf16Ptr(text))),
+		// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 message title pointer.
+		uintptr(unsafe.Pointer(utf16Ptr(title))),
+		MB_OK|MB_ICONERROR,
+	))
 }
 
 func CoInitialize() error {

@@ -21,20 +21,37 @@ func TestTrayNotificationCodeUsesLowWord(t *testing.T) {
 	}
 }
 
-func TestHandleCommandOpensConfig(t *testing.T) {
+func TestHandleCommandOpensSettings(t *testing.T) {
 	a := newTestApp()
 	calls := 0
-	a.openConfig = func() error {
+	a.openSettings = func() error {
 		calls++
 		return nil
 	}
 
-	handled := a.handleCommand(ui.CommandOpenConfig)
+	handled := a.handleCommand(ui.CommandOpenSettings)
 	if !handled {
-		t.Fatal("expected open config command to be handled")
+		t.Fatal("expected open settings command to be handled")
 	}
 	if calls != 1 {
-		t.Fatalf("got open config calls %d want 1", calls)
+		t.Fatalf("got open settings calls %d want 1", calls)
+	}
+}
+
+func TestHandleCommandOpensConfigFile(t *testing.T) {
+	a := newTestApp()
+	calls := 0
+	a.openConfigFile = func() error {
+		calls++
+		return nil
+	}
+
+	handled := a.handleCommand(ui.CommandOpenConfigFile)
+	if !handled {
+		t.Fatal("expected open config file command to be handled")
+	}
+	if calls != 1 {
+		t.Fatalf("got open config file calls %d want 1", calls)
 	}
 }
 
@@ -317,6 +334,72 @@ func TestCancelSessionWithoutInstantPreviewDoesNotRestoreStartingWindow(t *testi
 	}
 }
 
+func TestSaveSettingsConfigUpdatesRuntimeAndStartup(t *testing.T) {
+	a := newTestApp()
+	want := config.Config{
+		ShowThumbnails:       false,
+		LaunchOnStartup:      true,
+		InstantSwitchPreview: false,
+	}
+	saved := config.Config{}
+	startupCalls := 0
+	a.saveConfig = func(cfg config.Config) error {
+		saved = cfg
+		return nil
+	}
+	a.syncStartup = func(enabled bool) error {
+		startupCalls++
+		if !enabled {
+			t.Fatal("expected startup sync to receive enabled=true")
+		}
+		return nil
+	}
+
+	if err := a.saveSettingsConfig(want); err != nil {
+		t.Fatalf("saveSettingsConfig returned error: %v", err)
+	}
+	if saved != want {
+		t.Fatalf("got saved config %+v want %+v", saved, want)
+	}
+	if a.cfg != want {
+		t.Fatalf("got runtime config %+v want %+v", a.cfg, want)
+	}
+	if startupCalls != 1 {
+		t.Fatalf("got startup calls %d want 1", startupCalls)
+	}
+}
+
+func TestLoadCurrentConfigUpdatesRuntimeWithoutSyncingStartup(t *testing.T) {
+	a := newTestApp()
+	want := config.Config{
+		ShowThumbnails:       false,
+		LaunchOnStartup:      true,
+		InstantSwitchPreview: true,
+	}
+	a.loadConfig = func() (config.Config, error) {
+		return want, nil
+	}
+	startupCalls := 0
+	a.syncStartup = func(bool) error {
+		startupCalls++
+		return nil
+	}
+
+	got, err := a.loadCurrentConfig()
+	if err != nil {
+		t.Fatalf("loadCurrentConfig returned error: %v", err)
+	}
+	if got != want {
+		t.Fatalf("got loaded config %+v want %+v", got, want)
+	}
+	if a.cfg != want {
+		t.Fatalf("got runtime config %+v want %+v", a.cfg, want)
+	}
+	if startupCalls != 0 {
+		t.Fatalf("got startup calls %d want 0", startupCalls)
+	}
+}
+
 func newTestApp() *App {
 	a := &App{
 		logger:  log.New(io.Discard, "", 0),
@@ -324,6 +407,7 @@ func newTestApp() *App {
 		mru:     mru.New(),
 		overlay: ui.NewOverlay(0),
 	}
-	a.openConfig = func() error { return nil }
+	a.openSettings = func() error { return nil }
+	a.openConfigFile = func() error { return nil }
 	return a
 }

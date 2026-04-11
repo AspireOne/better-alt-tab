@@ -1,6 +1,10 @@
 package windows
 
-import "testing"
+import (
+	"testing"
+
+	"quick_app_switcher/internal/win32"
+)
 
 func TestEligiblePrefersVisibleLastActivePopup(t *testing.T) {
 	filter := Filter{}
@@ -126,5 +130,23 @@ func TestEligibleTargetMatchesSnapshotEligibilityWhenRootOwnsSwitchTarget(t *tes
 	}
 	if got, want := filter.EligibleTarget(popup, root, WindowInfo{}), filter.Eligible(popup, all); got != want {
 		t.Fatalf("EligibleTarget(popup) = %v, want %v", got, want)
+	}
+}
+
+func TestEligibleRejectsToolWindow(t *testing.T) {
+	filter := Filter{}
+	info := WindowInfo{
+		ID:               10,
+		Visible:          true,
+		OnCurrentDesktop: true,
+		ExStyle:          win32.WS_EX_TOOLWINDOW,
+		ClassName:        "Settings",
+	}
+
+	if filter.Eligible(info, map[WindowID]WindowInfo{info.ID: info}) {
+		t.Fatal("expected tool window to be excluded from snapshot eligibility")
+	}
+	if filter.EligibleTarget(info, info, WindowInfo{}) {
+		t.Fatal("expected tool window to be excluded from target eligibility")
 	}
 }

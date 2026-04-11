@@ -100,6 +100,10 @@ func RegisterWindowClass(className string, wndProc uintptr, instance HINSTANCE, 
 }
 
 func CreateWindow(exStyle, style uint32, className, windowName string, instance HINSTANCE, lpParam uintptr) (HWND, error) {
+	return CreateWindowAt(exStyle, style, className, windowName, 0, 0, 0, 0, 0, 0, instance, lpParam)
+}
+
+func CreateWindowAt(exStyle, style uint32, className, windowName string, x, y, width, height int32, parent HWND, menu HMENU, instance HINSTANCE, lpParam uintptr) (HWND, error) {
 	r, _, err := procCreateWindowExW.Call(
 		uintptr(exStyle),
 		// #nosec G103 -- Win32 syscall boundary requires passing a UTF-16 pointer.
@@ -107,8 +111,12 @@ func CreateWindow(exStyle, style uint32, className, windowName string, instance 
 		// #nosec G103 -- Win32 syscall boundary requires passing a UTF-16 pointer.
 		uintptr(unsafe.Pointer(utf16Ptr(windowName))),
 		uintptr(style),
-		0, 0, 0, 0,
-		0, 0,
+		uintptrFromInt32(x),
+		uintptrFromInt32(y),
+		uintptrFromInt32(width),
+		uintptrFromInt32(height),
+		uintptr(parent),
+		uintptr(menu),
 		uintptr(instance),
 		lpParam,
 	)
@@ -305,4 +313,9 @@ func GetWindowDC(hwnd HWND) HDC {
 
 func ReleaseDC(hwnd HWND, hdc HDC) {
 	ignoreSyscall3(procReleaseDC.Call(uintptr(hwnd), uintptr(hdc)))
+}
+
+func SendMessage(hwnd HWND, msg uint32, wParam, lParam uintptr) uintptr {
+	r, _, _ := procSendMessageW.Call(uintptr(hwnd), uintptr(msg), wParam, lParam)
+	return r
 }
