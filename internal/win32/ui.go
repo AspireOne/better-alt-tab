@@ -37,6 +37,66 @@ func LoadDefaultApplicationIcon() HICON {
 	return HICON(r)
 }
 
+func GetWindowIcon(hwnd HWND) HICON {
+	if hwnd == 0 {
+		return 0
+	}
+	for _, iconType := range []uintptr{ICON_BIG, ICON_SMALL2, ICON_SMALL} {
+		var result uintptr
+		r, _, _ := procSendMessageTimeoutW.Call(
+			uintptr(hwnd),
+			WM_GETICON,
+			iconType,
+			0,
+			SMTO_ABORTIFHUNG|SMTO_ERRORONEXIT,
+			20,
+			uintptr(unsafe.Pointer(&result)),
+		)
+		if r != 0 && result != 0 {
+			return HICON(result)
+		}
+	}
+	return 0
+}
+
+func GetClassIcon(hwnd HWND) HICON {
+	if hwnd == 0 {
+		return 0
+	}
+	for _, index := range []int32{GCLP_HICON, GCLP_HICONSM} {
+		r, _, _ := procGetClassLongPtrW.Call(uintptr(hwnd), uintptr(index))
+		if r != 0 {
+			return HICON(r)
+		}
+	}
+	return 0
+}
+
+func GetShellIcon(path string) (HICON, bool) {
+	if path == "" {
+		return 0, false
+	}
+	var info SHFILEINFO
+	r, _, _ := procSHGetFileInfoW.Call(
+		uintptr(unsafe.Pointer(utf16Ptr(path))),
+		0,
+		uintptr(unsafe.Pointer(&info)),
+		unsafe.Sizeof(info),
+		SHGFI_ICON|SHGFI_LARGEICON,
+	)
+	if r == 0 || info.HIcon == 0 {
+		return 0, false
+	}
+	return info.HIcon, true
+}
+
+func DestroyIcon(icon HICON) {
+	if icon == 0 {
+		return
+	}
+	ignoreSyscall3(procDestroyIcon.Call(uintptr(icon)))
+}
+
 func SetForegroundEventHook(callback uintptr) (Handle, error) {
 	r, _, err := procSetWinEventHook.Call(
 		EVENT_SYSTEM_FOREGROUND,

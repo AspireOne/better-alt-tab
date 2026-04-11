@@ -105,6 +105,14 @@ type NOTIFYICONDATA struct {
 	HBalloonIcon      HICON
 }
 
+type SHFILEINFO struct {
+	HIcon         HICON
+	IIcon         int32
+	DwAttributes  uint32
+	SzDisplayName [MAX_PATH]uint16
+	SzTypeName    [80]uint16
+}
+
 type MOUSEINPUT struct {
 	Dx        int32
 	Dy        int32
@@ -170,8 +178,13 @@ const (
 	WM_COMMAND   = 0x0111
 	WM_QUIT      = 0x0012
 	WM_APP       = 0x8000
+	WM_GETICON   = 0x007F
 	WM_RBUTTONUP = 0x0205
 	WM_LBUTTONUP = 0x0202
+
+	ICON_SMALL  = 0
+	ICON_BIG    = 1
+	ICON_SMALL2 = 2
 
 	WH_KEYBOARD_LL = 13
 	LLKHF_UP       = 0x0080
@@ -191,6 +204,12 @@ const (
 	GWL_STYLE   = -16
 	GWL_EXSTYLE = -20
 
+	GCLP_HICON   = -14
+	GCLP_HICONSM = -34
+
+	SMTO_ABORTIFHUNG = 0x0002
+	SMTO_ERRORONEXIT = 0x0020
+
 	MONITOR_DEFAULTTONEAREST = 2
 	DWMWA_CLOAKED            = 14
 
@@ -201,6 +220,9 @@ const (
 	NIM_DELETE           = 0x00000002
 	NIM_SETVERSION       = 0x00000004
 	NOTIFYICON_VERSION_4 = 4
+
+	SHGFI_ICON      = 0x000000100
+	SHGFI_LARGEICON = 0x000000000
 
 	TPM_RETURNCMD = 0x0100
 	TPM_NONOTIFY  = 0x0080

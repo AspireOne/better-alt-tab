@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -32,6 +33,7 @@ const (
 	msgTray              = win32.WM_APP + 5
 	msgShutdownRequested = win32.WM_APP + 6
 	msgThumbnailsReady   = win32.WM_APP + 7
+	msgIconsReady        = win32.WM_APP + 8
 
 	wmUser        = 0x0400
 	ninSelect     = wmUser + 0
@@ -194,6 +196,9 @@ func (a *App) shutdown() {
 	if a.thumbnails != nil {
 		a.thumbnails.Close()
 	}
+	if a.icons != nil {
+		a.icons.Close()
+	}
 	if a.desktop != nil {
 		a.desktop.Close()
 	}
@@ -245,6 +250,11 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 	case msgThumbnailsReady:
 		if !a.shuttingDown.Load() && a.session.State == session.StateCycling {
 			a.overlay.RefreshThumbnails()
+		}
+		return 0
+	case msgIconsReady:
+		if !a.shuttingDown.Load() && a.session.State == session.StateCycling {
+			a.overlay.Refresh()
 		}
 		return 0
 	case win32.WM_COMMAND:
@@ -305,6 +315,7 @@ func (a *App) onTabPressed() {
 		return
 	}
 	items, metrics := a.renderOverlay()
+	a.warmSessionIconsAsync(items)
 	a.warmSessionThumbnailsAsync(items, metrics)
 }
 
@@ -345,6 +356,33 @@ func (a *App) warmSessionThumbnailsAsync(items []windows.WindowInfo, metrics ui.
 		a.thumbnails.Warm(items, metrics.ThumbnailWidth, metrics.ThumbnailHeight)
 		if !a.shuttingDown.Load() && controller != 0 {
 			win32.PostMessage(controller, msgThumbnailsReady, 0, 0)
+		}
+	}()
+}
+
+func (a *App) warmSessionIconsAsync(items []windows.WindowInfo) {
+	if a.icons == nil || a.shuttingDown.Load() {
+		return
+	}
+	controller := a.controllerHwnd
+	copied := append([]windows.WindowInfo(nil), items...)
+	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
+		if err := win32.CoInitialize(); err != nil {
+			if a.logger != nil {
+				a.logger.Printf("initialize COM for icon warm: %v", err)
+			}
+			return
+		}
+		defer win32.CoUninitialize()
+
+		if a.shuttingDown.Load() {
+			return
+		}
+		if a.icons.Warm(copied) && !a.shuttingDown.Load() && controller != 0 {
+			win32.PostMessage(controller, msgIconsReady, 0, 0)
 		}
 	}()
 }

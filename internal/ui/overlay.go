@@ -49,6 +49,10 @@ func (o *Overlay) UpdateSelection(selected int) {
 }
 
 func (o *Overlay) RefreshThumbnails() {
+	o.Refresh()
+}
+
+func (o *Overlay) Refresh() {
 	win32.InvalidateRect(o.hwnd)
 }
 

@@ -69,8 +69,12 @@ var (
 	procGetMonitorInfoW            = user32.NewProc("GetMonitorInfoW")
 	procSendInput                  = user32.NewProc("SendInput")
 	procGetClassNameW              = user32.NewProc("GetClassNameW")
+	procSendMessageTimeoutW        = user32.NewProc("SendMessageTimeoutW")
+	procGetClassLongPtrW           = user32.NewProc("GetClassLongPtrW")
+	procDestroyIcon                = user32.NewProc("DestroyIcon")
 
 	procShellNotifyIconW = shell32.NewProc("Shell_NotifyIconW")
+	procSHGetFileInfoW   = shell32.NewProc("SHGetFileInfoW")
 
 	procCreateSolidBrush       = gdi32.NewProc("CreateSolidBrush")
 	procCreateCompatibleDC     = gdi32.NewProc("CreateCompatibleDC")
