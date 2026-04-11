@@ -33,7 +33,7 @@ Alternatively, you can use the provided PowerShell build script if available:
 
 1. Run the compiled `quick-app-switcher.exe`.
 2. The application will start in the background, and a new icon will appear in your Windows System Tray.
-3. Use the keyboard shortcut (typically `Alt` + `Tab`) to invoke the overlay and cycle through your open windows. Release the modifier key (`Alt`) to switch to the selected application.
+3. Use the keyboard shortcut (typically `Alt` + `Tab`) to invoke the overlay and cycle through your open windows. By default, the selected window is previewed immediately; set `instant_switch_preview = false` if you want switching to wait until you release `Alt`.
 4. To exit, right-click the Quick App Switcher icon in the system tray and select **Exit**.
 
 ## Configuration
@@ -45,9 +45,11 @@ Example:
 ```toml
 show_thumbnails = true
 launch_on_startup = false
+instant_switch_preview = true
 ```
 
 Set `launch_on_startup = true` to register the app under the current user's Windows `Run` key. The setting is reconciled on launch, so the stored startup command follows the current executable path.
+Set `instant_switch_preview = false` to keep focus on the current window while cycling and only activate the selected target on `Alt` release.
 
 ## Architecture
 

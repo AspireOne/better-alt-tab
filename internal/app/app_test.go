@@ -108,6 +108,31 @@ func TestPreviewSelectionUpdatesIndexAndSnapshotTarget(t *testing.T) {
 	}
 }
 
+func TestOnTabPressedWithoutInstantPreviewOnlyUpdatesSelection(t *testing.T) {
+	a := newTestApp()
+	a.cfg.InstantSwitchPreview = false
+	a.session = session.SwitchSession{
+		State:         session.StateCycling,
+		Candidates:    []windows.WindowID{10, 20, 30},
+		SelectedIndex: 1,
+	}
+
+	var activated []windows.WindowID
+	a.activateTarget = func(target windows.WindowID) error {
+		activated = append(activated, target)
+		return nil
+	}
+
+	a.onTabPressed()
+
+	if !reflect.DeepEqual(activated, []windows.WindowID(nil)) {
+		t.Fatalf("got activations %v want none", activated)
+	}
+	if a.session.SelectedIndex != 2 {
+		t.Fatalf("got selected index %d want 2", a.session.SelectedIndex)
+	}
+}
+
 func TestFinalizeSelectionFallsBackToNextActivatableTarget(t *testing.T) {
 	a := newTestApp()
 	a.mru = mru.New()
@@ -191,6 +216,79 @@ func TestOnAltReleasedFinalizesSelectionAndReleasesModifiers(t *testing.T) {
 	}
 	if a.session.State != session.StateIdle {
 		t.Fatalf("got state %v want idle", a.session.State)
+	}
+}
+
+func TestOnAltReleasedWithoutInstantPreviewActivatesSelectedTarget(t *testing.T) {
+	a := newTestApp()
+	a.cfg.InstantSwitchPreview = false
+	a.session = session.SwitchSession{
+		State:         session.StateCycling,
+		Candidates:    []windows.WindowID{10, 20, 30},
+		SelectedIndex: 2,
+	}
+	a.isValidSwitchTarget = func(target windows.WindowID) bool { return true }
+
+	var activated []windows.WindowID
+	a.activateTarget = func(target windows.WindowID) error {
+		activated = append(activated, target)
+		return nil
+	}
+
+	a.onAltReleased()
+
+	if !reflect.DeepEqual(activated, []windows.WindowID{30}) {
+		t.Fatalf("got activations %v want [30]", activated)
+	}
+}
+
+func TestOnAltReleasedWithoutInstantPreviewFallsBackToNextValidTarget(t *testing.T) {
+	a := newTestApp()
+	a.cfg.InstantSwitchPreview = false
+	a.session = session.SwitchSession{
+		State:         session.StateCycling,
+		Candidates:    []windows.WindowID{10, 20, 30},
+		SelectedIndex: 1,
+	}
+	a.isValidSwitchTarget = func(target windows.WindowID) bool {
+		return target != 20
+	}
+
+	var activated []windows.WindowID
+	a.activateTarget = func(target windows.WindowID) error {
+		activated = append(activated, target)
+		return nil
+	}
+
+	a.onAltReleased()
+
+	if !reflect.DeepEqual(activated, []windows.WindowID{30}) {
+		t.Fatalf("got activations %v want [30]", activated)
+	}
+}
+
+func TestCancelSessionWithoutInstantPreviewDoesNotRestoreStartingWindow(t *testing.T) {
+	a := newTestApp()
+	a.cfg.InstantSwitchPreview = false
+	a.session = session.SwitchSession{
+		State:          session.StateCycling,
+		Candidates:     []windows.WindowID{10, 20},
+		SelectedIndex:  1,
+		StartedFrom:    10,
+		OverlayVisible: true,
+	}
+	a.isValidSwitchTarget = func(target windows.WindowID) bool { return true }
+
+	var activated []windows.WindowID
+	a.activateTarget = func(target windows.WindowID) error {
+		activated = append(activated, target)
+		return nil
+	}
+
+	a.cancelSession()
+
+	if len(activated) != 0 {
+		t.Fatalf("got activations %v want none", activated)
 	}
 }
 

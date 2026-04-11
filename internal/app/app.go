@@ -319,7 +319,7 @@ func (a *App) onForegroundChanged(hwnd uintptr) {
 func (a *App) onTabPressed() {
 	if a.session.State == session.StateCycling {
 		a.session.Advance()
-		if !a.previewSelection() {
+		if a.cfg.InstantSwitchPreview && !a.previewSelection() {
 			a.cancelSession()
 			return
 		}
@@ -338,7 +338,7 @@ func (a *App) onTabPressed() {
 	if !a.session.Start(candidates, startedFrom) {
 		return
 	}
-	if !a.previewSelection() {
+	if a.cfg.InstantSwitchPreview && !a.previewSelection() {
 		a.session.Reset()
 		return
 	}
@@ -476,6 +476,9 @@ func (a *App) previewSelection() bool {
 }
 
 func (a *App) finalizeSelection(selected windows.WindowID) error {
+	if !a.cfg.InstantSwitchPreview {
+		return a.activateCommittedSelection(selected)
+	}
 	if selected != 0 && a.validSwitchTarget(selected) {
 		a.mru.MoveToFront(selected)
 		return nil
@@ -486,6 +489,26 @@ func (a *App) finalizeSelection(selected windows.WindowID) error {
 		return fmt.Errorf("finalize selected target %v: %w", selected, err)
 	}
 	a.session.SelectedIndex = index
+	a.rememberSnapshotTarget(candidate)
+	a.mru.MoveToFront(candidate)
+	return nil
+}
+
+func (a *App) activateCommittedSelection(selected windows.WindowID) error {
+	if selected != 0 && a.validSwitchTarget(selected) {
+		if err := a.activate(selected); err == nil {
+			a.rememberSnapshotTarget(selected)
+			a.mru.MoveToFront(selected)
+			return nil
+		}
+	}
+
+	index, candidate, err := a.activateCandidateFrom(a.session.SelectedIndex+1, selected)
+	if err != nil {
+		return fmt.Errorf("commit selected target %v: %w", selected, err)
+	}
+	a.session.SelectedIndex = index
+	a.rememberSnapshotTarget(candidate)
 	a.mru.MoveToFront(candidate)
 	return nil
 }
@@ -519,7 +542,7 @@ func (a *App) cancelSession() {
 	startedFrom := a.session.StartedFrom
 	a.session.Cancel()
 	a.overlay.Hide()
-	if startedFrom != 0 && a.validSwitchTarget(startedFrom) {
+	if a.cfg.InstantSwitchPreview && startedFrom != 0 && a.validSwitchTarget(startedFrom) {
 		if err := a.activate(startedFrom); err != nil {
 			a.logger.Printf("restore starting window failed: %v", err)
 		}
