@@ -53,8 +53,10 @@ Current options:
 - `show_thumbnails`
 - `launch_on_startup`
 - `instant_switch_preview`
+- `theme`
 
-These can be changed from the built-in settings window. Saved settings apply immediately.
+The first three can be changed from the built-in settings window. Saved settings apply immediately.
+The active theme name is edited in the config file.
 
 ## Usage
 
@@ -68,7 +70,7 @@ Tray actions:
 
 - Left-click: open Settings
 - Right-click: open the tray menu
-- Tray menu: `Settings`, `Open Config File`, `Close`
+- Tray menu: `Settings`, `Open Config File`, `Reload Theme`, `Close`
 
 ## Configuration File
 
@@ -82,7 +84,49 @@ Default config:
 show_thumbnails = true
 launch_on_startup = false
 instant_switch_preview = true
+theme = "default"
 ```
+
+Theme files live at:
+
+`%USERPROFILE%\.config\better-alt-tab\themes\<name>.toml`
+
+If the selected theme file does not exist, Better Alt Tab creates a default one automatically.
+
+Default theme:
+
+```toml
+version = 1
+
+[window]
+opacity = 255
+
+[colors]
+overlay_background = "#202020"
+item_background = "#333333"
+item_selected_background = "#C06020"
+thumbnail_fallback_background = "#444444"
+icon_badge_background = "#181818"
+label = "#D8D8D8"
+label_selected = "#FFFFFF"
+
+[layout]
+thumbnail_width = 180
+thumbnail_height = 110
+icon_size = 20
+label_height = 18
+label_gap = 6
+padding = 16
+gap = 16
+selection_inset = 4
+
+[features]
+show_icon_badge = true
+show_labels = true
+```
+
+After editing a theme file, use the tray menu action `Reload Theme` to apply it without restarting the app.
+If you change `theme = "..."` in `config.toml`, `Reload Theme` also picks up the new theme file selection.
 
 ## Limitations
 
@@ -103,6 +147,28 @@ For a quick development build-and-run loop:
 ```powershell
 .\build-run.ps1
 ```
+
+## Releases
+
+Releases are automated through GitHub Actions.
+
+- Every push and pull request to `main` runs Windows CI: tests, build, and lint.
+- Pushing a tag that matches `v*` creates a GitHub release, builds the Windows binary, zips it, writes a SHA-256 checksum, and attaches both artifacts.
+- Release notes are generated from the non-merge commits since the previous tag.
+
+Tag-driven release:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Manual release from GitHub:
+
+- Run the `Release` workflow with a `tag` like `v0.1.0`.
+- Optionally set `target` to a branch or commit SHA if you do not want to release the current `main`.
+
+The release artifact is published as `better-alt-tab_<tag>_windows_amd64.zip`.
 
 ## Technical Notes
 

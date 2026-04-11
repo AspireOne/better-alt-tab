@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+        type: string
+      target:
+        description: Branch, tag, or SHA to release from
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  RELEASE_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || github.sha }}
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TARGET }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        shell: pwsh
+        run: go test ./...
+
+      - name: Build release assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+
+          $assetBase = "better-alt-tab_${env:RELEASE_TAG}_windows_amd64"
+          $exePath = Join-Path $PWD "dist\better-alt-tab.exe"
+          $zipPath = Join-Path $PWD "dist\$assetBase.zip"
+          $checksumPath = Join-Path $PWD "dist\$assetBase.sha256"
+
+          go build -trimpath -ldflags "-s -w -H=windowsgui" -o $exePath ./cmd/better-alt-tab
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
+
+          Compress-Archive -LiteralPath @(
+            $exePath,
+            (Join-Path $PWD "README.md")
+          ) -DestinationPath $zipPath -Force
+
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path -Leaf $zipPath)" | Set-Content -NoNewline -LiteralPath $checksumPath
+
+      - name: Generate release notes
+        shell: pwsh
+        run: .\.github\scripts\generate-release-notes.ps1 -Tag "${env:RELEASE_TAG}" -Repo "${{ github.repository }}" -OutputPath ".\dist\release-notes.md"
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $tag = $env:RELEASE_TAG
+          $title = "Better Alt Tab $tag"
+          $assets = @(
+            ".\dist\better-alt-tab_${tag}_windows_amd64.zip",
+            ".\dist\better-alt-tab_${tag}_windows_amd64.sha256"
+          )
+
+          gh release view $tag *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+
+          if ($releaseExists) {
+              gh release edit $tag --title $title --notes-file ".\dist\release-notes.md"
+              if ($LASTEXITCODE -ne 0) {
+                  exit $LASTEXITCODE
+              }
+
+              gh release upload $tag $assets --clobber
+              if ($LASTEXITCODE -ne 0) {
+                  exit $LASTEXITCODE
+              }
+
+              exit 0
+          }
+
+          $createArgs = @(
+            "release", "create", $tag,
+            "--title", $title,
+            "--notes-file", ".\dist\release-notes.md"
+          )
+
+          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+              $createArgs += @("--target", $env:RELEASE_TARGET)
+          }
+
+          if ($tag.Contains("-")) {
+              $createArgs += "--prerelease"
+          }
+
+          $createArgs += $assets
+
+          & gh @createArgs
+          if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+          }
