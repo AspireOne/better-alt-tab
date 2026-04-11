@@ -7,6 +7,7 @@ Repo-wide guidance for autonomous coding agents.
 - Keep changes scoped. Do not widen scope without a concrete reason.
 - Prefer the smallest correct change over a broad refactor.
 - Preserve the existing architecture unless there is a clear technical reason to improve it.
+- Use conventional commits for commiting. Include body too.
 
 ## Coding Style
 
@@ -85,9 +86,7 @@ Before finishing:
 
 - check affected edge cases
 - call out any untested Windows-specific behavior
-- Use conventional commits for commiting. Include title and body too.
-
-- Verify: run `lefthook run pre-commit` (which runs tests and linting) and build the app after implementing a feature. Address any surfaced issues.
+- Run tests, linting, and build the app, and address any surfaced issues.
 
 ## If In Doubt
 
