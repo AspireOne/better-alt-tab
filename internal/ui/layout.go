@@ -1,6 +1,9 @@
 package ui
 
-import "better_alt_tab/internal/win32"
+import (
+	"better_alt_tab/internal/theme"
+	"better_alt_tab/internal/win32"
+)
 
 type OverlayMetrics struct {
 	Width           int32
@@ -15,24 +18,26 @@ type OverlayMetrics struct {
 	SelectionInset  int32
 }
 
-func ComputeMetrics(count int) OverlayMetrics {
+func ComputeMetrics(layout theme.Layout, showLabels bool, count int) OverlayMetrics {
 	metrics := OverlayMetrics{
-		ThumbnailWidth:  180,
-		ThumbnailHeight: 110,
-		IconSize:        20,
-		LabelHeight:     18,
-		LabelGap:        6,
-		Padding:         16,
-		Gap:             16,
-		SelectionInset:  4,
+		ThumbnailWidth:  layout.ThumbnailWidth,
+		ThumbnailHeight: layout.ThumbnailHeight,
+		IconSize:        layout.IconSize,
+		Padding:         layout.Padding,
+		Gap:             layout.Gap,
+		SelectionInset:  layout.SelectionInset,
+	}
+	if showLabels {
+		metrics.LabelHeight = layout.LabelHeight
+		metrics.LabelGap = layout.LabelGap
 	}
 	return FitMetricsToWidth(metrics, count, 0x7fffffff)
 }
 
-func ComputeMetricsForAnchor(anchor win32.HWND, count int) OverlayMetrics {
+func ComputeMetricsForAnchor(anchor win32.HWND, layout theme.Layout, showLabels bool, count int) OverlayMetrics {
 	monitor := win32.MonitorFromWindow(anchor)
 	bounds := win32.GetMonitorRect(monitor)
-	return FitMetricsToWidth(ComputeMetrics(count), count, bounds.Right-bounds.Left)
+	return FitMetricsToWidth(ComputeMetrics(layout, showLabels, count), count, bounds.Right-bounds.Left)
 }
 
 func FitMetricsToWidth(metrics OverlayMetrics, count int, maxWidth int32) OverlayMetrics {

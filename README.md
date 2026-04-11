@@ -26,6 +26,9 @@ It is built for people who switch windows constantly and want something that fee
 - Optional window thumbnails.
   When enabled, the overlay shows live previews. When disabled, it stays lean with icons and labels only.
 
+- Externally themeable overlay.
+  You can point the app at a named theme file and customize the switcher’s colors, sizing, opacity, and a few visibility toggles without rebuilding the app.
+
 - Simple built-in settings.
   Open Settings from the tray icon and change behavior without digging through menus or restarting the app.
 
@@ -57,6 +60,28 @@ Current options:
 
 The first three can be changed from the built-in settings window. Saved settings apply immediately.
 The active theme name is edited in the config file.
+
+## Theming
+
+Better Alt Tab supports external theme files so each user can make the overlay look their own without changing code.
+
+The theme system is intentionally simple:
+
+- `config.toml` selects the active theme by name
+- `themes/<name>.toml` defines the overlay appearance
+- the tray menu action `Reload Theme` reapplies the current theme without restarting the app
+
+Theming is aimed at practical customization rather than a full skinning engine. It lets you tune the parts of the current overlay design that are stable and cheap to apply:
+
+- overlay opacity
+- background and selection colors
+- label colors
+- thumbnail, icon, padding, gap, and selection sizing
+- whether labels are shown
+- whether the icon badge is shown
+
+If the selected theme file does not exist yet, Better Alt Tab creates a default one automatically.
+If the theme file is invalid, the app fails cleanly for that theme load instead of silently guessing, and the built-in Settings window still remains accessible.
 
 ## Usage
 
@@ -90,6 +115,16 @@ theme = "default"
 Theme files live at:
 
 `%USERPROFILE%\.config\better-alt-tab\themes\<name>.toml`
+
+For example, this config:
+
+```toml
+theme = "default"
+```
+
+loads:
+
+`%USERPROFILE%\.config\better-alt-tab\themes\default.toml`
 
 If the selected theme file does not exist, Better Alt Tab creates a default one automatically.
 
@@ -128,6 +163,12 @@ show_labels = true
 After editing a theme file, use the tray menu action `Reload Theme` to apply it without restarting the app.
 If you change `theme = "..."` in `config.toml`, `Reload Theme` also picks up the new theme file selection.
 
+Theme behavior notes:
+
+- Missing fields inherit the built-in defaults.
+- Invalid values fail with an error instead of being silently rewritten.
+- `show_labels = false` removes the label row from the overlay layout rather than only hiding the text.
+
 ## Limitations
 
 - Windows only
@@ -147,28 +188,6 @@ For a quick development build-and-run loop:
 ```powershell
 .\build-run.ps1
 ```
-
-## Releases
-
-Releases are automated through GitHub Actions.
-
-- Every push and pull request to `main` runs Windows CI: tests, build, and lint.
-- Pushing a tag that matches `v*` creates a GitHub release, builds the Windows binary, zips it, writes a SHA-256 checksum, and attaches both artifacts.
-- Release notes are generated from the non-merge commits since the previous tag.
-
-Tag-driven release:
-
-```powershell
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-Manual release from GitHub:
-
-- Run the `Release` workflow with a `tag` like `v0.1.0`.
-- Optionally set `target` to a branch or commit SHA if you do not want to release the current `main`.
-
-The release artifact is published as `better-alt-tab_<tag>_windows_amd64.zip`.
 
 ## Technical Notes
 

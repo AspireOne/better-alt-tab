@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"better_alt_tab/internal/theme"
 	"better_alt_tab/internal/win32"
 	"better_alt_tab/internal/windows"
 )
@@ -9,6 +10,7 @@ type Overlay struct {
 	hwnd    win32.HWND
 	data    OverlayData
 	metrics OverlayMetrics
+	theme   theme.Theme
 }
 
 type OverlayData struct {
@@ -16,12 +18,16 @@ type OverlayData struct {
 	Selected int
 }
 
-func NewOverlay(hwnd win32.HWND) *Overlay {
-	return &Overlay{hwnd: hwnd}
+func NewOverlay(hwnd win32.HWND, current theme.Theme) *Overlay {
+	return &Overlay{hwnd: hwnd, theme: current.Normalize()}
+}
+
+func (o *Overlay) SetTheme(current theme.Theme) {
+	o.theme = current.Normalize()
 }
 
 func (o *Overlay) Update(anchor win32.HWND, items []windows.WindowInfo, selected int) {
-	metrics := ComputeMetricsForAnchor(anchor, len(items))
+	metrics := ComputeMetricsForAnchor(anchor, o.theme.Layout, o.theme.Features.ShowLabels, len(items))
 	o.UpdateWithMetrics(anchor, items, selected, metrics)
 }
 
@@ -65,13 +71,13 @@ func (o *Overlay) Paint(hwnd win32.HWND, icons *windows.IconCache, thumbnails *w
 	defer win32.EndPaint(hwnd, &ps)
 
 	rect := ps.Paint
-	bg := win32.CreateSolidBrush(0x00202020)
+	bg := win32.CreateSolidBrush(uintptr(o.theme.Colors.OverlayBackground))
 	defer win32.DeleteObject(uintptr(bg))
 	win32.FillRect(hdc, &rect, bg)
 
 	metrics := o.metrics
 	if metrics.Width == 0 || metrics.Height == 0 {
-		metrics = ComputeMetrics(len(o.data.Items))
+		metrics = ComputeMetrics(o.theme.Layout, o.theme.Features.ShowLabels, len(o.data.Items))
 	}
 	left := metrics.Padding
 	for i, item := range o.data.Items {
@@ -85,9 +91,9 @@ func (o *Overlay) Paint(hwnd win32.HWND, icons *windows.IconCache, thumbnails *w
 			left += metrics.ThumbnailWidth + metrics.Gap
 			continue
 		}
-		fill := uintptr(0x00333333)
+		fill := uintptr(o.theme.Colors.ItemBackground)
 		if i == o.data.Selected {
-			fill = 0x00c06020
+			fill = uintptr(o.theme.Colors.ItemSelectedBackground)
 		}
 		brush := win32.CreateSolidBrush(fill)
 		win32.FillRect(hdc, &selectionRect, brush)
@@ -112,7 +118,7 @@ func (o *Overlay) Paint(hwnd win32.HWND, icons *windows.IconCache, thumbnails *w
 			}
 		}
 		if drawFallbackPreview {
-			fallback := win32.CreateSolidBrush(0x00444444)
+			fallback := win32.CreateSolidBrush(uintptr(o.theme.Colors.ThumbnailFallbackBackground))
 			win32.FillRect(hdc, &thumbRect, fallback)
 			win32.DeleteObject(uintptr(fallback))
 
@@ -135,34 +141,38 @@ func (o *Overlay) Paint(hwnd win32.HWND, icons *windows.IconCache, thumbnails *w
 			win32.DrawIconInRect(hdc, fallbackIconRect, icons.IconFor(item))
 		}
 
-		badgeRect := win32.RECT{
-			Left:   thumbRect.Left + 8,
-			Top:    thumbRect.Top + 8,
-			Right:  thumbRect.Left + 8 + metrics.IconSize + 8,
-			Bottom: thumbRect.Top + 8 + metrics.IconSize + 8,
+		if o.theme.Features.ShowIconBadge {
+			badgeRect := win32.RECT{
+				Left:   thumbRect.Left + 8,
+				Top:    thumbRect.Top + 8,
+				Right:  thumbRect.Left + 8 + metrics.IconSize + 8,
+				Bottom: thumbRect.Top + 8 + metrics.IconSize + 8,
+			}
+			badge := win32.CreateSolidBrush(uintptr(o.theme.Colors.IconBadgeBackground))
+			win32.FillRect(hdc, &badgeRect, badge)
+			win32.DeleteObject(uintptr(badge))
+			iconRect := win32.RECT{
+				Left:   badgeRect.Left + 4,
+				Top:    badgeRect.Top + 4,
+				Right:  badgeRect.Right - 4,
+				Bottom: badgeRect.Bottom - 4,
+			}
+			win32.DrawIconInRect(hdc, iconRect, icons.IconFor(item))
 		}
-		badge := win32.CreateSolidBrush(0x00181818)
-		win32.FillRect(hdc, &badgeRect, badge)
-		win32.DeleteObject(uintptr(badge))
-		iconRect := win32.RECT{
-			Left:   badgeRect.Left + 4,
-			Top:    badgeRect.Top + 4,
-			Right:  badgeRect.Right - 4,
-			Bottom: badgeRect.Bottom - 4,
-		}
-		win32.DrawIconInRect(hdc, iconRect, icons.IconFor(item))
 
-		labelRect := win32.RECT{
-			Left:   thumbRect.Left,
-			Top:    thumbRect.Bottom + metrics.LabelGap,
-			Right:  thumbRect.Right,
-			Bottom: thumbRect.Bottom + metrics.LabelGap + metrics.LabelHeight,
+		if o.theme.Features.ShowLabels {
+			labelRect := win32.RECT{
+				Left:   thumbRect.Left,
+				Top:    thumbRect.Bottom + metrics.LabelGap,
+				Right:  thumbRect.Right,
+				Bottom: thumbRect.Bottom + metrics.LabelGap + metrics.LabelHeight,
+			}
+			labelColor := uintptr(o.theme.Colors.Label)
+			if i == o.data.Selected {
+				labelColor = uintptr(o.theme.Colors.LabelSelected)
+			}
+			win32.DrawLabel(hdc, labelRect, item.AppDisplayName(), labelColor)
 		}
-		labelColor := uintptr(0x00d8d8d8)
-		if i == o.data.Selected {
-			labelColor = 0x00ffffff
-		}
-		win32.DrawLabel(hdc, labelRect, item.AppDisplayName(), labelColor)
 
 		left += metrics.ThumbnailWidth + metrics.Gap
 	}

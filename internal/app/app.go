@@ -18,6 +18,7 @@ import (
 	coderuntime "better_alt_tab/internal/runtime"
 	"better_alt_tab/internal/session"
 	"better_alt_tab/internal/startup"
+	"better_alt_tab/internal/theme"
 	"better_alt_tab/internal/ui"
 	"better_alt_tab/internal/win32"
 	"better_alt_tab/internal/windows"
@@ -48,6 +49,7 @@ var win32PostMessage = win32.PostMessage
 type App struct {
 	logger         *log.Logger
 	cfg            config.Config
+	theme          theme.Theme
 	instance       win32.HINSTANCE
 	controllerHwnd win32.HWND
 	overlayHwnd    win32.HWND
@@ -78,12 +80,13 @@ type App struct {
 	openSettings     func() error
 	openConfigFile   func() error
 	loadConfig       func() (config.Config, error)
+	loadTheme        func(string) (theme.Theme, error)
 	saveConfig       func(config.Config) error
 	syncStartup      func(bool) error
 	forceExit        func(int)
 }
 
-func Run(logger *log.Logger, cfg config.Config) error {
+func Run(logger *log.Logger, cfg config.Config, overlayTheme theme.Theme) error {
 	instance, err := coderuntime.AcquireSingleInstance()
 	if err != nil {
 		return err
@@ -103,6 +106,7 @@ func Run(logger *log.Logger, cfg config.Config) error {
 	a := &App{
 		logger:     logger,
 		cfg:        cfg,
+		theme:      overlayTheme.Normalize(),
 		tray:       ui.NewTray(msgTray, "Quick App Switcher"),
 		icons:      windows.NewIconCache(),
 		thumbnails: windows.NewThumbnailCache(),
@@ -112,6 +116,7 @@ func Run(logger *log.Logger, cfg config.Config) error {
 	a.openSettings = a.openSettingsWindow
 	a.openConfigFile = a.openConfigPath
 	a.loadConfig = config.Load
+	a.loadTheme = config.LoadTheme
 	a.saveConfig = config.Save
 	a.syncStartup = startup.Sync
 	a.forceExit = os.Exit
@@ -171,7 +176,10 @@ func (a *App) initWindows() error {
 	if err := win32.SetLayeredWindowAlpha(a.overlayHwnd, 255); err != nil {
 		return fmt.Errorf("initialize overlay alpha: %w", err)
 	}
-	a.overlay = ui.NewOverlay(a.overlayHwnd)
+	a.overlay = ui.NewOverlay(a.overlayHwnd, a.theme)
+	if err := a.applyTheme(a.theme); err != nil {
+		return fmt.Errorf("apply theme: %w", err)
+	}
 	a.taskbarMsg = ui.RegisterTaskbarCreated()
 
 	a.desktop, _ = windows.NewDesktopManager()
@@ -334,6 +342,12 @@ func (a *App) handleCommand(command uint32) bool {
 			a.reportActionError("Open Config File", err)
 		}
 		return true
+	case ui.CommandReloadTheme:
+		if err := a.reloadTheme(); err != nil {
+			a.logger.Printf("reload theme: %v", err)
+			a.reportActionError("Reload Theme", err)
+		}
+		return true
 	case ui.CommandExit:
 		win32.PostQuitMessage(0)
 		return true
@@ -467,7 +481,7 @@ func (a *App) renderOverlay() ([]windows.WindowInfo, ui.OverlayMetrics) {
 	if anchor == 0 {
 		anchor = win32.GetForegroundWindow()
 	}
-	metrics := ui.ComputeMetricsForAnchor(anchor, len(items))
+	metrics := ui.ComputeMetricsForAnchor(anchor, a.theme.Layout, a.theme.Features.ShowLabels, len(items))
 	a.overlay.UpdateWithMetrics(anchor, items, a.session.SelectedIndex, metrics)
 	return items, metrics
 }
@@ -700,9 +714,13 @@ func (a *App) openSettingsWindow() error {
 	if err := a.ensureSettingsWindow(); err != nil {
 		return err
 	}
-	cfg, err := a.loadCurrentConfig()
+	cfg, themeErr, err := a.loadSettingsConfig()
 	if err != nil {
 		return err
+	}
+	if themeErr != nil {
+		a.logger.Printf("load theme for settings: %v", themeErr)
+		a.reportActionError("Load Theme", themeErr)
 	}
 	a.settings.Show(cfg)
 	return nil
@@ -729,15 +747,37 @@ func (a *App) loadCurrentConfig() (config.Config, error) {
 	if err != nil {
 		return config.Config{}, err
 	}
+	if err := a.loadAndApplyTheme(cfg.Theme); err != nil {
+		return config.Config{}, err
+	}
 	a.cfg = cfg
 	return cfg, nil
+}
+
+func (a *App) loadSettingsConfig() (config.Config, error, error) {
+	if a.loadConfig == nil {
+		return a.cfg, nil, nil
+	}
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return config.Config{}, nil, err
+	}
+	a.cfg = cfg
+	if err := a.loadAndApplyTheme(cfg.Theme); err != nil {
+		return cfg, err, nil
+	}
+	return cfg, nil, nil
 }
 
 func (a *App) saveSettings() error {
 	if a.settings == nil {
 		return fmt.Errorf("settings window is not initialized")
 	}
-	cfg := a.settings.Config()
+	cfg := a.cfg
+	settingsCfg := a.settings.Config()
+	cfg.ShowThumbnails = settingsCfg.ShowThumbnails
+	cfg.LaunchOnStartup = settingsCfg.LaunchOnStartup
+	cfg.InstantSwitchPreview = settingsCfg.InstantSwitchPreview
 	if err := a.saveSettingsConfig(cfg); err != nil {
 		return err
 	}
@@ -755,8 +795,16 @@ func (a *App) hideSettings() {
 }
 
 func (a *App) saveSettingsConfig(cfg config.Config) error {
+	oldTheme := a.theme
+
+	if err := a.loadAndApplyTheme(cfg.Theme); err != nil {
+		return err
+	}
 	if a.saveConfig != nil {
 		if err := a.saveConfig(cfg); err != nil {
+			if rollbackErr := a.applyTheme(oldTheme); rollbackErr != nil {
+				return fmt.Errorf("save config: %w; rollback theme: %v", err, rollbackErr)
+			}
 			return err
 		}
 	}
@@ -765,6 +813,50 @@ func (a *App) saveSettingsConfig(cfg config.Config) error {
 		if err := a.syncStartup(cfg.LaunchOnStartup); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (a *App) reloadTheme() error {
+	name := a.cfg.Theme
+	if a.loadConfig != nil {
+		cfg, err := a.loadConfig()
+		if err != nil {
+			return err
+		}
+		name = cfg.Theme
+		a.cfg.Theme = cfg.Theme
+	}
+	return a.loadAndApplyTheme(name)
+}
+
+func (a *App) loadAndApplyTheme(name string) error {
+	if a.loadTheme == nil {
+		return a.applyTheme(a.theme)
+	}
+	cfg, err := a.loadTheme(name)
+	if err != nil {
+		return err
+	}
+	return a.applyTheme(cfg)
+}
+
+func (a *App) applyTheme(cfg theme.Theme) error {
+	cfg = cfg.Normalize()
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	if a.overlayHwnd != 0 {
+		if err := win32.SetLayeredWindowAlpha(a.overlayHwnd, cfg.Window.Opacity); err != nil {
+			return fmt.Errorf("set overlay alpha: %w", err)
+		}
+	}
+	a.theme = cfg
+	if a.overlay != nil {
+		a.overlay.SetTheme(cfg)
+	}
+	if a.session.State == session.StateCycling && a.overlay != nil {
+		a.overlay.Refresh()
 	}
 	return nil
 }

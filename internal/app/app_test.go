@@ -11,6 +11,7 @@ import (
 	"better_alt_tab/internal/config"
 	"better_alt_tab/internal/mru"
 	"better_alt_tab/internal/session"
+	"better_alt_tab/internal/theme"
 	"better_alt_tab/internal/ui"
 	"better_alt_tab/internal/win32"
 	"better_alt_tab/internal/windows"
@@ -54,6 +55,23 @@ func TestHandleCommandOpensConfigFile(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("got open config file calls %d want 1", calls)
+	}
+}
+
+func TestHandleCommandReloadsTheme(t *testing.T) {
+	a := newTestApp()
+	calls := 0
+	a.loadTheme = func(string) (theme.Theme, error) {
+		calls++
+		return theme.Default(), nil
+	}
+
+	handled := a.handleCommand(ui.CommandReloadTheme)
+	if !handled {
+		t.Fatal("expected reload theme command to be handled")
+	}
+	if calls != 1 {
+		t.Fatalf("got reload theme calls %d want 1", calls)
 	}
 }
 
@@ -342,6 +360,7 @@ func TestSaveSettingsConfigUpdatesRuntimeAndStartup(t *testing.T) {
 		ShowThumbnails:       false,
 		LaunchOnStartup:      true,
 		InstantSwitchPreview: false,
+		Theme:                "sunset",
 	}
 	saved := config.Config{}
 	startupCalls := 0
@@ -371,15 +390,119 @@ func TestSaveSettingsConfigUpdatesRuntimeAndStartup(t *testing.T) {
 	}
 }
 
+func TestSaveSettingsConfigDoesNotPersistWhenThemeLoadFails(t *testing.T) {
+	a := newTestApp()
+	original := a.cfg
+	a.loadTheme = func(string) (theme.Theme, error) {
+		return theme.Theme{}, errors.New("bad theme")
+	}
+
+	calls := 0
+	a.saveConfig = func(cfg config.Config) error {
+		calls++
+		return nil
+	}
+
+	err := a.saveSettingsConfig(config.Config{Theme: "broken"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != 0 {
+		t.Fatalf("got save calls %d want 0", calls)
+	}
+	if a.cfg != original {
+		t.Fatalf("got runtime config %+v want %+v", a.cfg, original)
+	}
+	if a.theme != theme.Default() {
+		t.Fatalf("got runtime theme %+v want default theme", a.theme)
+	}
+}
+
+func TestSaveSettingsConfigRollsBackThemeWhenSaveFails(t *testing.T) {
+	a := newTestApp()
+	oldTheme := theme.Default()
+	oldTheme.Window.Opacity = 200
+	newTheme := theme.Default()
+	newTheme.Window.Opacity = 180
+	a.theme = oldTheme
+
+	a.loadTheme = func(name string) (theme.Theme, error) {
+		if name != "sunset" {
+			t.Fatalf("got theme name %q want %q", name, "sunset")
+		}
+		return newTheme, nil
+	}
+
+	calls := 0
+	a.saveConfig = func(cfg config.Config) error {
+		calls++
+		return errors.New("disk full")
+	}
+
+	err := a.saveSettingsConfig(config.Config{Theme: "sunset"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != 1 {
+		t.Fatalf("got save calls %d want 1", calls)
+	}
+	if a.theme != oldTheme {
+		t.Fatalf("got runtime theme %+v want %+v", a.theme, oldTheme)
+	}
+	if a.cfg != config.Default() {
+		t.Fatalf("got runtime config %+v want %+v", a.cfg, config.Default())
+	}
+}
+
+func TestSaveSettingsPreservesTheme(t *testing.T) {
+	const themeName = "sunset"
+
+	a := newTestApp()
+	a.cfg.Theme = themeName
+	a.settings = ui.NewSettingsWindow()
+	a.settings.SetConfig(config.Config{
+		ShowThumbnails:       false,
+		LaunchOnStartup:      true,
+		InstantSwitchPreview: false,
+	})
+
+	var saved config.Config
+	a.saveConfig = func(cfg config.Config) error {
+		saved = cfg
+		return nil
+	}
+	a.loadTheme = func(name string) (theme.Theme, error) {
+		if name != themeName {
+			t.Fatalf("got theme name %q want %q", name, themeName)
+		}
+		return theme.Default(), nil
+	}
+	a.syncStartup = func(bool) error { return nil }
+
+	if err := a.saveSettings(); err != nil {
+		t.Fatalf("saveSettings returned error: %v", err)
+	}
+	if saved.Theme != themeName {
+		t.Fatalf("got saved theme %q want %q", saved.Theme, themeName)
+	}
+}
+
 func TestLoadCurrentConfigUpdatesRuntimeWithoutSyncingStartup(t *testing.T) {
 	a := newTestApp()
 	want := config.Config{
 		ShowThumbnails:       false,
 		LaunchOnStartup:      true,
 		InstantSwitchPreview: true,
+		Theme:                "sunset",
 	}
 	a.loadConfig = func() (config.Config, error) {
 		return want, nil
+	}
+	a.loadTheme = func(name string) (theme.Theme, error) {
+		if name != "sunset" {
+			t.Fatalf("got theme name %q want %q", name, "sunset")
+		}
+		return theme.Default(), nil
 	}
 	startupCalls := 0
 	a.syncStartup = func(bool) error {
@@ -399,6 +522,39 @@ func TestLoadCurrentConfigUpdatesRuntimeWithoutSyncingStartup(t *testing.T) {
 	}
 	if startupCalls != 0 {
 		t.Fatalf("got startup calls %d want 0", startupCalls)
+	}
+}
+
+func TestLoadSettingsConfigContinuesWhenThemeLoadFails(t *testing.T) {
+	a := newTestApp()
+	want := config.Config{
+		ShowThumbnails:       false,
+		LaunchOnStartup:      true,
+		InstantSwitchPreview: true,
+		Theme:                "broken",
+	}
+	a.loadConfig = func() (config.Config, error) {
+		return want, nil
+	}
+	a.loadTheme = func(name string) (theme.Theme, error) {
+		if name != "broken" {
+			t.Fatalf("got theme name %q want %q", name, "broken")
+		}
+		return theme.Default(), errors.New("theme parse failed")
+	}
+
+	got, themeErr, err := a.loadSettingsConfig()
+	if err != nil {
+		t.Fatalf("loadSettingsConfig returned config error: %v", err)
+	}
+	if themeErr == nil {
+		t.Fatal("expected theme error")
+	}
+	if got != want {
+		t.Fatalf("got loaded config %+v want %+v", got, want)
+	}
+	if a.cfg != want {
+		t.Fatalf("got runtime config %+v want %+v", a.cfg, want)
 	}
 }
 
@@ -484,10 +640,12 @@ func newTestApp() *App {
 	a := &App{
 		logger:  log.New(io.Discard, "", 0),
 		cfg:     config.Default(),
+		theme:   theme.Default(),
 		mru:     mru.New(),
-		overlay: ui.NewOverlay(0),
+		overlay: ui.NewOverlay(0, theme.Default()),
 	}
 	a.openSettings = func() error { return nil }
 	a.openConfigFile = func() error { return nil }
+	a.loadTheme = func(string) (theme.Theme, error) { return theme.Default(), nil }
 	return a
 }

@@ -7,9 +7,10 @@ const (
 )
 
 type Config struct {
-	ShowThumbnails       bool `toml:"show_thumbnails"`
-	LaunchOnStartup      bool `toml:"launch_on_startup"`
-	InstantSwitchPreview bool `toml:"instant_switch_preview"`
+	ShowThumbnails       bool   `toml:"show_thumbnails"`
+	LaunchOnStartup      bool   `toml:"launch_on_startup"`
+	InstantSwitchPreview bool   `toml:"instant_switch_preview"`
+	Theme                string `toml:"theme"`
 }
 
 func Default() Config {
@@ -17,5 +18,6 @@ func Default() Config {
 		ShowThumbnails:       true,
 		LaunchOnStartup:      false,
 		InstantSwitchPreview: true,
+		Theme:                "default",
 	}
 }

@@ -28,6 +28,9 @@ func TestLoadPathMissingFileReturnsDefaults(t *testing.T) {
 	if !strings.Contains(data, "instant_switch_preview = true") {
 		t.Fatalf("got file contents %q", data)
 	}
+	if !strings.Contains(data, "theme = \"default\"") {
+		t.Fatalf("got file contents %q", data)
+	}
 }
 
 func TestLoadPathEmptyFileKeepsDefaultsAndNormalizes(t *testing.T) {
@@ -54,11 +57,14 @@ func TestLoadPathEmptyFileKeepsDefaultsAndNormalizes(t *testing.T) {
 	if !strings.Contains(data, "instant_switch_preview = true") {
 		t.Fatalf("got file contents %q", data)
 	}
+	if !strings.Contains(data, "theme = \"default\"") {
+		t.Fatalf("got file contents %q", data)
+	}
 }
 
 func TestLoadPathExplicitValuesOverrideDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), configName)
-	if err := os.WriteFile(path, []byte("show_thumbnails = false\nlaunch_on_startup = true\ninstant_switch_preview = false\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("show_thumbnails = false\nlaunch_on_startup = true\ninstant_switch_preview = false\ntheme = \"sunset\"\n"), 0o600); err != nil {
 		t.Fatalf("write file: %v", err)
 	}
 
@@ -75,6 +81,9 @@ func TestLoadPathExplicitValuesOverrideDefaults(t *testing.T) {
 	if cfg.InstantSwitchPreview {
 		t.Fatal("expected instant_switch_preview to be false")
 	}
+	if cfg.Theme != "sunset" {
+		t.Fatalf("got theme %q want %q", cfg.Theme, "sunset")
+	}
 }
 
 func TestLoadPathMissingFieldsAreAddedWithDefaults(t *testing.T) {
@@ -87,7 +96,7 @@ func TestLoadPathMissingFieldsAreAddedWithDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadPath returned error: %v", err)
 	}
-	want := Config{ShowThumbnails: false, LaunchOnStartup: false, InstantSwitchPreview: true}
+	want := Config{ShowThumbnails: false, LaunchOnStartup: false, InstantSwitchPreview: true, Theme: "default"}
 	if cfg != want {
 		t.Fatalf("got %+v want %+v", cfg, want)
 	}
@@ -100,6 +109,9 @@ func TestLoadPathMissingFieldsAreAddedWithDefaults(t *testing.T) {
 		t.Fatalf("got file contents %q", data)
 	}
 	if !strings.Contains(data, "instant_switch_preview = true") {
+		t.Fatalf("got file contents %q", data)
+	}
+	if !strings.Contains(data, "theme = \"default\"") {
 		t.Fatalf("got file contents %q", data)
 	}
 }
@@ -142,7 +154,7 @@ func TestLoadPathUnknownKeysFail(t *testing.T) {
 
 func TestSavePathWritesRoundTripConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), configName)
-	want := Config{ShowThumbnails: false, LaunchOnStartup: true, InstantSwitchPreview: false}
+	want := Config{ShowThumbnails: false, LaunchOnStartup: true, InstantSwitchPreview: false, Theme: "sunset"}
 	if err := savePath(path, want); err != nil {
 		t.Fatalf("savePath returned error: %v", err)
 	}

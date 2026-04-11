@@ -7,6 +7,7 @@ import (
 	"better_alt_tab/internal/app"
 	"better_alt_tab/internal/config"
 	"better_alt_tab/internal/startup"
+	"better_alt_tab/internal/theme"
 )
 
 func main() {
@@ -22,7 +23,12 @@ func main() {
 			logger.Printf("startup warning: %v", err)
 		}
 	}
-	if err := app.Run(logger, cfg); err != nil {
+	overlayTheme, err := config.LoadTheme(cfg.Theme)
+	if err != nil {
+		logger.Printf("theme warning: %v; using defaults", err)
+		overlayTheme = theme.Default()
+	}
+	if err := app.Run(logger, cfg, overlayTheme); err != nil {
 		logger.Fatalf("run: %v", err)
 	}
 }

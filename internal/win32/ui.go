@@ -395,7 +395,7 @@ func DeleteTrayIcon(hwnd HWND) error {
 	return nil
 }
 
-func ShowTrayMenu(hwnd HWND, settingsCommandID, openConfigCommandID, exitCommandID uint32) {
+func ShowTrayMenu(hwnd HWND, settingsCommandID, openConfigCommandID, reloadThemeCommandID, exitCommandID uint32) {
 	menu, _, _ := procCreatePopupMenu.Call()
 	if menu == 0 {
 		return
@@ -409,6 +409,10 @@ func ShowTrayMenu(hwnd HWND, settingsCommandID, openConfigCommandID, exitCommand
 	}
 	// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
 	ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(openConfigCommandID), uintptr(unsafe.Pointer(utf16Ptr("Open Config File")))))
+	if reloadThemeCommandID != 0 {
+		// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
+		ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(reloadThemeCommandID), uintptr(unsafe.Pointer(utf16Ptr("Reload Theme")))))
+	}
 	// #nosec G103 -- Win32 syscall boundary requires passing the UTF-16 menu label.
 	ignoreSyscall3(procAppendMenuW.Call(menu, MF_STRING, uintptr(exitCommandID), uintptr(unsafe.Pointer(utf16Ptr("Close")))))
 	var pt POINT
