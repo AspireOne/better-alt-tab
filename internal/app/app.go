@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"quick_app_switcher/internal/config"
 	"quick_app_switcher/internal/events"
 	"quick_app_switcher/internal/input"
 	"quick_app_switcher/internal/mru"
@@ -43,6 +44,7 @@ const (
 
 type App struct {
 	logger         *log.Logger
+	cfg            config.Config
 	controllerHwnd win32.HWND
 	overlayHwnd    win32.HWND
 	taskbarMsg     uint32
@@ -69,7 +71,7 @@ type App struct {
 	releaseModifiers func() error
 }
 
-func Run(logger *log.Logger) error {
+func Run(logger *log.Logger, cfg config.Config) error {
 	instance, err := coderuntime.AcquireSingleInstance()
 	if err != nil {
 		return err
@@ -88,6 +90,7 @@ func Run(logger *log.Logger) error {
 
 	a := &App{
 		logger:     logger,
+		cfg:        cfg,
 		tray:       ui.NewTray(msgTray, "Quick App Switcher"),
 		icons:      windows.NewIconCache(),
 		thumbnails: windows.NewThumbnailCache(),
@@ -289,7 +292,11 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 
 func (a *App) overlayWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uintptr) uintptr {
 	if msg == win32.WM_PAINT {
-		a.overlay.Paint(hwnd, a.icons, a.thumbnails)
+		thumbnails := a.thumbnails
+		if !a.cfg.ShowThumbnails {
+			thumbnails = nil
+		}
+		a.overlay.Paint(hwnd, a.icons, thumbnails)
 		return 0
 	}
 	return win32.DefWindowProc(hwnd, msg, wParam, lParam)
@@ -398,7 +405,7 @@ func (a *App) sessionItems() []windows.WindowInfo {
 }
 
 func (a *App) warmSessionThumbnailsAsync(items []windows.WindowInfo, metrics ui.OverlayMetrics) {
-	if a.thumbnails == nil || a.shuttingDown.Load() {
+	if !a.cfg.ShowThumbnails || a.thumbnails == nil || a.shuttingDown.Load() {
 		return
 	}
 	controller := a.controllerHwnd

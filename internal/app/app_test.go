@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"quick_app_switcher/internal/config"
 	"quick_app_switcher/internal/mru"
 	"quick_app_switcher/internal/session"
 	"quick_app_switcher/internal/ui"
@@ -196,6 +197,7 @@ func TestOnAltReleasedFinalizesSelectionAndReleasesModifiers(t *testing.T) {
 func newTestApp() *App {
 	return &App{
 		logger:  log.New(io.Discard, "", 0),
+		cfg:     config.Default(),
 		mru:     mru.New(),
 		overlay: ui.NewOverlay(0),
 	}
