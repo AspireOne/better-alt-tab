@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"quick_app_switcher/internal/win32"
-	"quick_app_switcher/internal/windows"
+	"better_alt_tab/internal/win32"
+	"better_alt_tab/internal/windows"
 )
 
 type Overlay struct {

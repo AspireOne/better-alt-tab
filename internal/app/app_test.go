@@ -7,11 +7,11 @@ import (
 	"reflect"
 	"testing"
 
-	"quick_app_switcher/internal/config"
-	"quick_app_switcher/internal/mru"
-	"quick_app_switcher/internal/session"
-	"quick_app_switcher/internal/ui"
-	"quick_app_switcher/internal/windows"
+	"better_alt_tab/internal/config"
+	"better_alt_tab/internal/mru"
+	"better_alt_tab/internal/session"
+	"better_alt_tab/internal/ui"
+	"better_alt_tab/internal/windows"
 )
 
 func TestTrayNotificationCodeUsesLowWord(t *testing.T) {

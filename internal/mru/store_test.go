@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"quick_app_switcher/internal/windows"
+	"better_alt_tab/internal/windows"
 )
 
 func TestBuildCandidatesMergesMRUAndSnapshot(t *testing.T) {

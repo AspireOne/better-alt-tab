@@ -1,4 +1,4 @@
-module quick_app_switcher
+module better_alt_tab
 
 go 1.26
 

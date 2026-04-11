@@ -1,6 +1,6 @@
 package session
 
-import "quick_app_switcher/internal/windows"
+import "better_alt_tab/internal/windows"
 
 type State uint8
 

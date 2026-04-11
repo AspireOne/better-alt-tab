@@ -6,9 +6,9 @@ import (
 	"syscall"
 	"unsafe"
 
-	"quick_app_switcher/internal/win32"
+	"better_alt_tab/internal/win32"
 
-	coderuntime "quick_app_switcher/internal/runtime"
+	coderuntime "better_alt_tab/internal/runtime"
 )
 
 var (

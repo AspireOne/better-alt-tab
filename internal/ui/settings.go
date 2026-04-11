@@ -3,8 +3,8 @@ package ui
 import (
 	"fmt"
 
-	"quick_app_switcher/internal/config"
-	"quick_app_switcher/internal/win32"
+	"better_alt_tab/internal/config"
+	"better_alt_tab/internal/win32"
 )
 
 const (

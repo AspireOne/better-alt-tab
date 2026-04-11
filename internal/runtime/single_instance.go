@@ -3,7 +3,7 @@ package runtime
 import (
 	"fmt"
 
-	"quick_app_switcher/internal/win32"
+	"better_alt_tab/internal/win32"
 )
 
 const instanceMutexName = "Local\\QuickAppSwitcher.SingleInstance"

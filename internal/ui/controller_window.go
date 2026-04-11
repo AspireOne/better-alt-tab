@@ -1,6 +1,6 @@
 package ui
 
-import "quick_app_switcher/internal/win32"
+import "better_alt_tab/internal/win32"
 
 const (
 	CommandExit           = 1001

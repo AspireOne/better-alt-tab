@@ -1,7 +1,7 @@
 package config
 
 const (
-	appDirName   = "quick-app-switcher"
+	appDirName   = "better-alt-tab"
 	configName   = "config.toml"
 	configSubdir = ".config"
 )

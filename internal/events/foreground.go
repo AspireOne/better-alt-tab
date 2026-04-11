@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"quick_app_switcher/internal/win32"
+	"better_alt_tab/internal/win32"
 )
 
 type ForegroundWatcher struct {

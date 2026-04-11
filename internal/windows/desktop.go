@@ -1,6 +1,6 @@
 package windows
 
-import "quick_app_switcher/internal/win32"
+import "better_alt_tab/internal/win32"
 
 type DesktopManager struct {
 	manager   *win32.VirtualDesktopManager

@@ -11,16 +11,16 @@ import (
 	"syscall"
 	"unsafe"
 
-	"quick_app_switcher/internal/config"
-	"quick_app_switcher/internal/events"
-	"quick_app_switcher/internal/input"
-	"quick_app_switcher/internal/mru"
-	coderuntime "quick_app_switcher/internal/runtime"
-	"quick_app_switcher/internal/session"
-	"quick_app_switcher/internal/startup"
-	"quick_app_switcher/internal/ui"
-	"quick_app_switcher/internal/win32"
-	"quick_app_switcher/internal/windows"
+	"better_alt_tab/internal/config"
+	"better_alt_tab/internal/events"
+	"better_alt_tab/internal/input"
+	"better_alt_tab/internal/mru"
+	coderuntime "better_alt_tab/internal/runtime"
+	"better_alt_tab/internal/session"
+	"better_alt_tab/internal/startup"
+	"better_alt_tab/internal/ui"
+	"better_alt_tab/internal/win32"
+	"better_alt_tab/internal/windows"
 )
 
 const (

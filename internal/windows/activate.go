@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"quick_app_switcher/internal/win32"
+	"better_alt_tab/internal/win32"
 )
 
 func Activate(target WindowID) error {

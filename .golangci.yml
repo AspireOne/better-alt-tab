@@ -24,4 +24,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - quick_app_switcher
+        - better_alt_tab

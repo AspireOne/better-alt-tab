@@ -1,6 +1,6 @@
 package mru
 
-import "quick_app_switcher/internal/windows"
+import "better_alt_tab/internal/windows"
 
 type Store struct {
 	order []windows.WindowID

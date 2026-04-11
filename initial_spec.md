@@ -182,7 +182,7 @@ This outline should borrow the overall native-Windows shape from [_oss_window_sw
 
 The initial codebase should be organized around one executable and a small set of focused internal packages:
 
-- `cmd/quick-app-switcher/main.go`
+- `cmd/better-alt-tab/main.go`
   - process entrypoint
   - single-instance guard
   - startup logging

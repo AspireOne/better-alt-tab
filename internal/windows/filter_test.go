@@ -3,7 +3,7 @@ package windows
 import (
 	"testing"
 
-	"quick_app_switcher/internal/win32"
+	"better_alt_tab/internal/win32"
 )
 
 func TestEligiblePrefersVisibleLastActivePopup(t *testing.T) {

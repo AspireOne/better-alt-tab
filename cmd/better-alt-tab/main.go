@@ -4,13 +4,13 @@ import (
 	"log"
 	"os"
 
-	"quick_app_switcher/internal/app"
-	"quick_app_switcher/internal/config"
-	"quick_app_switcher/internal/startup"
+	"better_alt_tab/internal/app"
+	"better_alt_tab/internal/config"
+	"better_alt_tab/internal/startup"
 )
 
 func main() {
-	logger := log.New(os.Stderr, "quick-app-switcher: ", log.LstdFlags|log.Lmicroseconds)
+	logger := log.New(os.Stderr, "better-alt-tab: ", log.LstdFlags|log.Lmicroseconds)
 	cfg, err := config.Load()
 	configLoaded := err == nil
 	if err != nil {

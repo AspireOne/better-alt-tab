@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"quick_app_switcher/internal/windows"
+	"better_alt_tab/internal/windows"
 )
 
 func TestStartSelectsSecondCandidate(t *testing.T) {

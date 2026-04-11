@@ -58,7 +58,7 @@ These can be changed from the built-in settings window. Saved settings apply imm
 
 ## Usage
 
-1. Start `quick-app-switcher.exe`.
+1. Start `better-alt-tab.exe`.
 2. Hold `Alt` and press `Tab` to begin switching.
 3. Press `Tab` again to move forward through recent windows.
 4. Release `Alt` to activate the selected window.
@@ -74,7 +74,7 @@ Tray actions:
 
 The config file lives at:
 
-`%USERPROFILE%\.config\quick-app-switcher\config.toml`
+`%USERPROFILE%\.config\better-alt-tab\config.toml`
 
 Default config:
 
@@ -95,7 +95,7 @@ instant_switch_preview = true
 If you want to build it yourself:
 
 ```powershell
-go build -o quick-app-switcher.exe ./cmd/quick-app-switcher
+go build -o better-alt-tab.exe ./cmd/better-alt-tab
 ```
 
 For a quick development build-and-run loop:
