@@ -59,6 +59,9 @@ type App struct {
 	session      session.SwitchSession
 	lastSnapshot windows.InventorySnapshot
 
+	activateTarget      func(windows.WindowID) error
+	isValidSwitchTarget func(windows.WindowID) bool
+
 	windowProc      uintptr
 	overlayProc     uintptr
 	shuttingDown    atomic.Bool
@@ -271,7 +274,7 @@ func (a *App) controllerWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uint
 			return 0
 		}
 		if msg == msgTray {
-			switch trayNotificationCode(uint32(lParam)) {
+			switch trayNotificationCode(lParam) {
 			case wmContextMenu, win32.WM_RBUTTONUP, ninSelect, ninKeySelect:
 				a.tray.ShowMenu(hwnd, ui.CommandExit)
 			}
@@ -290,11 +293,14 @@ func (a *App) overlayWndProc(hwnd win32.HWND, msg uint32, wParam, lParam uintptr
 }
 
 func (a *App) onForegroundChanged(hwnd uintptr) {
+	if a.session.State == session.StateCycling || a.session.State == session.StateCommitPending {
+		return
+	}
 	id := windows.WindowID(hwnd)
 	if id == 0 {
 		return
 	}
-	if a.inventory.IsValidSwitchTarget(id) {
+	if a.validSwitchTarget(id) {
 		a.rememberSnapshotTarget(id)
 		a.mru.MoveToFront(id)
 	}
@@ -303,6 +309,10 @@ func (a *App) onForegroundChanged(hwnd uintptr) {
 func (a *App) onTabPressed() {
 	if a.session.State == session.StateCycling {
 		a.session.Advance()
+		if !a.previewSelection() {
+			a.cancelSession()
+			return
+		}
 		a.overlay.UpdateSelection(a.session.SelectedIndex)
 		return
 	}
@@ -318,6 +328,10 @@ func (a *App) onTabPressed() {
 	if !a.session.Start(candidates, startedFrom) {
 		return
 	}
+	if !a.previewSelection() {
+		a.session.Reset()
+		return
+	}
 	items, metrics := a.renderOverlay()
 	a.warmSessionIconsAsync(items)
 	a.warmSessionThumbnailsAsync(items, metrics)
@@ -330,7 +344,7 @@ func (a *App) pruneCachedSnapshot() {
 	}
 	kept := a.lastSnapshot.Order[:0]
 	for _, id := range a.lastSnapshot.Order {
-		if _, ok := a.lastSnapshot.ByID[id]; !ok || !a.inventory.IsValidSwitchTarget(id) {
+		if _, ok := a.lastSnapshot.ByID[id]; !ok || !a.validSwitchTarget(id) {
 			delete(a.lastSnapshot.ByID, id)
 			continue
 		}
@@ -431,60 +445,105 @@ func (a *App) onAltReleased() {
 		return
 	}
 	a.overlay.Hide()
-	if err := a.commitSelection(selected); err != nil {
+	if err := a.finalizeSelection(selected); err != nil {
 		a.logger.Printf("commit failed: %v", err)
 	}
 	a.session.Reset()
 }
 
-func (a *App) commitSelection(selected windows.WindowID) error {
-	selectedErr := windows.Activate(selected)
-	if selectedErr == nil {
+func (a *App) previewSelection() bool {
+	index, selected, err := a.activateCandidateFrom(a.session.SelectedIndex, 0)
+	if err != nil {
+		a.logger.Printf("preview activation failed: %v", err)
+		return false
+	}
+	a.session.SelectedIndex = index
+	a.rememberSnapshotTarget(selected)
+	return true
+}
+
+func (a *App) finalizeSelection(selected windows.WindowID) error {
+	if selected != 0 && a.validSwitchTarget(selected) {
 		a.mru.MoveToFront(selected)
 		return nil
 	}
 
-	if candidate, ok := a.nextValidCandidateAfterSelected(); ok {
-		replacementErr := windows.Activate(candidate)
-		if replacementErr == nil {
-			a.mru.MoveToFront(candidate)
-			return nil
-		}
-		return fmt.Errorf("activation failed for replacement target %v after selected target %v failed: replacement: %w; selected: %v", candidate, selected, replacementErr, selectedErr)
+	index, candidate, err := a.activateCandidateFrom(a.session.SelectedIndex+1, selected)
+	if err != nil {
+		return fmt.Errorf("finalize selected target %v: %w", selected, err)
 	}
-
-	return fmt.Errorf("activation failed for selected target %v and no valid replacement target was found: %w", selected, selectedErr)
+	a.session.SelectedIndex = index
+	a.mru.MoveToFront(candidate)
+	return nil
 }
 
-func (a *App) nextValidCandidateAfterSelected() (windows.WindowID, bool) {
+func (a *App) activateCandidateFrom(start int, skip windows.WindowID) (int, windows.WindowID, error) {
 	if len(a.session.Candidates) == 0 {
-		return 0, false
+		return 0, 0, fmt.Errorf("no session candidates")
 	}
-	start := a.session.SelectedIndex + 1
-	if start >= len(a.session.Candidates) {
-		start = 0
-	}
+
+	start = normalizeCandidateIndex(start, len(a.session.Candidates))
+	var firstErr error
 	for i := 0; i < len(a.session.Candidates); i++ {
 		index := (start + i) % len(a.session.Candidates)
 		candidate := a.session.Candidates[index]
-		if candidate == 0 || candidate == a.session.Candidates[a.session.SelectedIndex] {
+		if candidate == 0 || candidate == skip || !a.validSwitchTarget(candidate) {
 			continue
 		}
-		if a.inventory.IsValidSwitchTarget(candidate) {
-			return candidate, true
+		if err := a.activate(candidate); err == nil {
+			return index, candidate, nil
+		} else if firstErr == nil {
+			firstErr = err
 		}
 	}
-	return 0, false
+	if firstErr != nil {
+		return 0, 0, firstErr
+	}
+	return 0, 0, fmt.Errorf("no valid switch target")
 }
 
 func (a *App) cancelSession() {
+	startedFrom := a.session.StartedFrom
 	a.session.Cancel()
 	a.overlay.Hide()
+	if startedFrom != 0 && a.validSwitchTarget(startedFrom) {
+		if err := a.activate(startedFrom); err != nil {
+			a.logger.Printf("restore starting window failed: %v", err)
+		}
+	}
 	a.session.Reset()
 }
 
-func trayNotificationCode(lParam uint32) uint32 {
-	return lParam & 0xffff
+func (a *App) activate(target windows.WindowID) error {
+	if a.activateTarget != nil {
+		return a.activateTarget(target)
+	}
+	return windows.Activate(target)
+}
+
+func (a *App) validSwitchTarget(target windows.WindowID) bool {
+	if a.isValidSwitchTarget != nil {
+		return a.isValidSwitchTarget(target)
+	}
+	if a.inventory == nil {
+		return false
+	}
+	return a.inventory.IsValidSwitchTarget(target)
+}
+
+func normalizeCandidateIndex(start, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	start %= count
+	if start < 0 {
+		start += count
+	}
+	return start
+}
+
+func trayNotificationCode(lParam uintptr) uint32 {
+	return uint32(lParam & 0xffff)
 }
 
 func (a *App) requestShutdown() {

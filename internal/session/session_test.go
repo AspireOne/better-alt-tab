@@ -41,3 +41,52 @@ func TestStartRejectsSingleCandidate(t *testing.T) {
 		t.Fatalf("got %v want idle", s.State)
 	}
 }
+
+func TestBeginCommitTransitionsWithoutChangingSelection(t *testing.T) {
+	var s SwitchSession
+	if !s.Start([]windows.WindowID{10, 20, 30}, 10) {
+		t.Fatal("expected session start")
+	}
+	s.Advance()
+
+	currentBefore, ok := s.Current()
+	if !ok {
+		t.Fatal("expected current candidate before commit")
+	}
+
+	currentAfter, ok := s.BeginCommit()
+	if !ok {
+		t.Fatal("expected commit to begin")
+	}
+	if currentAfter != currentBefore {
+		t.Fatalf("got %v want %v", currentAfter, currentBefore)
+	}
+	if s.State != StateCommitPending {
+		t.Fatalf("got %v want commit pending", s.State)
+	}
+	if s.OverlayVisible {
+		t.Fatal("expected overlay hidden while commit is pending")
+	}
+}
+
+func TestCancelClearsSessionState(t *testing.T) {
+	var s SwitchSession
+	if !s.Start([]windows.WindowID{10, 20, 30}, 10) {
+		t.Fatal("expected session start")
+	}
+
+	s.Cancel()
+
+	if s.State != StateCancelled {
+		t.Fatalf("got %v want cancelled", s.State)
+	}
+	if s.OverlayVisible {
+		t.Fatal("expected overlay hidden after cancel")
+	}
+	if len(s.Candidates) != 0 {
+		t.Fatalf("got %d candidates want 0", len(s.Candidates))
+	}
+	if s.StartedFrom != 0 {
+		t.Fatalf("got started from %v want 0", s.StartedFrom)
+	}
+}

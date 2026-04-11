@@ -34,6 +34,13 @@ type Hook struct {
 	shutdownRequest chan struct{}
 }
 
+type keyDecision struct {
+	suppress   bool
+	postTab    bool
+	postAltUp  bool
+	postCancel bool
+}
+
 func New(target win32.HWND, messageTab, messageAltUp, messageCancel uint32) *Hook {
 	return &Hook{
 		target:          target,
@@ -103,42 +110,59 @@ func (h *Hook) proc(code int32, wParam uintptr, lParam uintptr) uintptr {
 		return win32.CallNextHook(h.hook, code, wParam, lParam)
 	}
 	data := *(*win32.KBDLLHOOKSTRUCT)(unsafe.Pointer(lParam))
-	keyUp := data.Flags&win32.LLKHF_UP != 0
-	switch data.VKCode {
+	decision := h.handleKey(data.VKCode, data.Flags)
+	if decision.postTab {
+		win32.PostMessage(h.target, h.messageTab, 0, 0)
+	}
+	if decision.postAltUp {
+		win32.PostMessage(h.target, h.messageAltUp, 0, 0)
+	}
+	if decision.postCancel {
+		win32.PostMessage(h.target, h.messageCancel, 0, 0)
+	}
+	if decision.suppress {
+		return 1
+	}
+	return win32.CallNextHook(h.hook, code, wParam, lParam)
+}
+
+func (h *Hook) handleKey(vkCode, flags uint32) keyDecision {
+	keyUp := flags&win32.LLKHF_UP != 0
+	switch vkCode {
 	case win32.VK_LMENU, win32.VK_RMENU, win32.VK_MENU:
 		h.altDown = !keyUp
-		if keyUp {
-			h.tabDown = false
-			if h.ownedSession {
-				win32.PostMessage(h.target, h.messageAltUp, 0, 0)
-				h.ownedSession = false
-				return 1
-			}
+		if !keyUp {
+			return keyDecision{}
+		}
+		h.tabDown = false
+		if h.ownedSession {
+			h.ownedSession = false
+			// Keep the real Alt-up visible to Windows so the modifier state
+			// is balanced after our handled Alt+Tab session ends.
+			return keyDecision{postAltUp: true}
 		}
 	case win32.VK_TAB:
 		if !h.altDown {
 			h.tabDown = false
-			break
+			return keyDecision{}
 		}
 		if keyUp {
 			h.tabDown = false
-			return 1
+			return keyDecision{suppress: true}
 		}
 		if h.tabDown {
-			return 1
+			return keyDecision{suppress: true}
 		}
 		h.tabDown = true
 		h.ownedSession = true
-		win32.PostMessage(h.target, h.messageTab, 0, 0)
-		return 1
+		return keyDecision{suppress: true, postTab: true}
 	case win32.VK_ESCAPE:
 		if h.ownedSession && !keyUp {
-			win32.PostMessage(h.target, h.messageCancel, 0, 0)
 			h.ownedSession = false
-			return 1
+			return keyDecision{suppress: true, postCancel: true}
 		}
 	}
-	return win32.CallNextHook(h.hook, code, wParam, lParam)
+	return keyDecision{}
 }
 
 func ensureMessageQueue() {
