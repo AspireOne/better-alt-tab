@@ -51,5 +51,8 @@ func loadPath(path string) (Config, error) {
 		}
 		return Default(), fmt.Errorf("decode config %s: unknown keys: %s", path, strings.Join(keys, ", "))
 	}
+	if err := savePath(path, cfg); err != nil {
+		return cfg, fmt.Errorf("normalize config %s: %w", path, err)
+	}
 	return cfg, nil
 }
