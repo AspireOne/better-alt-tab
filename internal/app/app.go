@@ -43,6 +43,8 @@ const (
 	wmContextMenu = 0x007B
 )
 
+var win32PostMessage = win32.PostMessage
+
 type App struct {
 	logger         *log.Logger
 	cfg            config.Config
@@ -78,6 +80,7 @@ type App struct {
 	loadConfig       func() (config.Config, error)
 	saveConfig       func(config.Config) error
 	syncStartup      func(bool) error
+	forceExit        func(int)
 }
 
 func Run(logger *log.Logger, cfg config.Config) error {
@@ -111,6 +114,7 @@ func Run(logger *log.Logger, cfg config.Config) error {
 	a.loadConfig = config.Load
 	a.saveConfig = config.Save
 	a.syncStartup = startup.Sync
+	a.forceExit = os.Exit
 	if err := a.initWindows(); err != nil {
 		a.shutdown()
 		return err
@@ -120,11 +124,10 @@ func Run(logger *log.Logger, cfg config.Config) error {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 	defer signal.Stop(signals)
+	done := make(chan struct{})
+	defer close(done)
 
-	go func() {
-		<-signals
-		a.requestShutdown()
-	}()
+	go a.handleInterrupts(signals, done)
 
 	return a.loop()
 }
@@ -670,7 +673,27 @@ func (a *App) requestShutdown() {
 	if a.controllerHwnd == 0 {
 		return
 	}
-	win32.PostMessage(a.controllerHwnd, msgShutdownRequested, 0, 0)
+	win32PostMessage(a.controllerHwnd, msgShutdownRequested, 0, 0)
+}
+
+func (a *App) handleInterrupts(signals <-chan os.Signal, done <-chan struct{}) {
+	select {
+	case <-done:
+		return
+	case <-signals:
+		a.requestShutdown()
+	}
+
+	select {
+	case <-done:
+		return
+	case <-signals:
+		exit := a.forceExit
+		if exit == nil {
+			exit = os.Exit
+		}
+		exit(130)
+	}
 }
 
 func (a *App) openSettingsWindow() error {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"os"
 	"reflect"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"better_alt_tab/internal/mru"
 	"better_alt_tab/internal/session"
 	"better_alt_tab/internal/ui"
+	"better_alt_tab/internal/win32"
 	"better_alt_tab/internal/windows"
 )
 
@@ -397,6 +399,84 @@ func TestLoadCurrentConfigUpdatesRuntimeWithoutSyncingStartup(t *testing.T) {
 	}
 	if startupCalls != 0 {
 		t.Fatalf("got startup calls %d want 0", startupCalls)
+	}
+}
+
+func TestHandleInterruptsRequestsShutdownOnFirstInterrupt(t *testing.T) {
+	a := newTestApp()
+	requested := make(chan struct{}, 1)
+	a.controllerHwnd = 1
+	a.forceExit = func(code int) {
+		t.Fatalf("unexpected forced exit with code %d", code)
+	}
+	originalPost := win32PostMessage
+	win32PostMessage = func(hwnd win32.HWND, msg uint32, wParam, lParam uintptr) bool {
+		if hwnd != a.controllerHwnd {
+			t.Fatalf("got hwnd %v want %v", hwnd, a.controllerHwnd)
+		}
+		if msg != msgShutdownRequested {
+			t.Fatalf("got message %#x want %#x", msg, msgShutdownRequested)
+		}
+		requested <- struct{}{}
+		return true
+	}
+	defer func() {
+		win32PostMessage = originalPost
+	}()
+
+	signals := make(chan os.Signal, 2)
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		a.handleInterrupts(signals, done)
+	}()
+
+	signals <- os.Interrupt
+
+	select {
+	case <-requested:
+	case <-finished:
+		t.Fatal("handler returned before processing first interrupt")
+	}
+
+	close(done)
+	<-finished
+}
+
+func TestHandleInterruptsForcesExitOnSecondInterrupt(t *testing.T) {
+	a := newTestApp()
+	a.controllerHwnd = 1
+	exitCode := make(chan int, 1)
+	a.forceExit = func(code int) {
+		exitCode <- code
+	}
+	originalPost := win32PostMessage
+	win32PostMessage = func(hwnd win32.HWND, msg uint32, wParam, lParam uintptr) bool {
+		return true
+	}
+	defer func() {
+		win32PostMessage = originalPost
+	}()
+
+	signals := make(chan os.Signal, 2)
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		a.handleInterrupts(signals, done)
+	}()
+
+	signals <- os.Interrupt
+	signals <- os.Interrupt
+
+	select {
+	case code := <-exitCode:
+		if code != 130 {
+			t.Fatalf("got exit code %d want 130", code)
+		}
+	case <-finished:
+		t.Fatal("handler returned before forcing exit")
 	}
 }
 
